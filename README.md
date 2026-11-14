@@ -137,7 +137,8 @@ IndexedDB のデータベース `gohobi-neko`（version 1）に保存します�
 
 - **Vercel**：リポジトリをインポートするだけ（Framework Preset: Next.js、設定変更不要）
 - **自前の Node サーバー**：`npm ci && npm run build && npm run start`
-- **静的ホスティング**：`next.config.ts` に `output: "export"` を追加すると `out/` に静的ファイルを書き出せます（この構成でのビルドは未検証）
+- セキュリティヘッダー（CSP など）は `next.config.ts` の `headers()` で付けています。Vercel と `next start` では有効です。
+- **静的ホスティング**：`next.config.ts` に `output: "export"` を追加すると `out/` に静的ファイルを書き出せます（この構成でのビルドは未検証。`headers()` は効かなくなるため、同じヘッダーをホスティング側で設定してください）
 
 ## 既知の制約
 

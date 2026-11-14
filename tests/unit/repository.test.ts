@@ -135,3 +135,34 @@ describe("repository", () => {
     expect((await listTasks(db)).length).toBe(1);
   });
 });
+
+describe("細工したバックアップを拒否する", () => {
+  async function dump() {
+    await loadState(db);
+    await createTask(db, input);
+    return JSON.parse(JSON.stringify(await exportAll(db)));
+  }
+  it("XP・個数・日時の範囲外を拒否する", async () => {
+    const base = await dump();
+    const cases: Array<(d: any) => void> = [
+      (d) => (d.state.cat.xp = 1e300),
+      (d) => (d.state.inventory.kibble = 1e12),
+      (d) => (d.state.cat.bornAt = Date.now() + 10 * 86_400_000),
+      (d) => (d.tasks[0].createdAt = -1),
+      (d) => (d.tasks = Array.from({ length: 5001 }, (_, i) => ({ ...d.tasks[0], id: `t${i}` }))),
+      (d) => (d.tasks[0].id = "x".repeat(65)),
+    ];
+    for (const mutate of cases) {
+      const d = structuredClone(base);
+      mutate(d);
+      expect(() => parseExportData(d)).toThrowError(GameError);
+    }
+  });
+  it("__proto__ などの余計なキーは取り込まない", async () => {
+    const d = await dump();
+    const text = JSON.stringify(d).replace('"cat":{', '"cat":{"__proto__":{"polluted":1},"extra":"x",');
+    const parsed = parseExportData(JSON.parse(text));
+    expect(Object.keys(parsed.state.cat).sort()).toEqual(["bornAt", "fullness", "fullnessAt", "name", "petCount", "totalFeeds", "xp"]);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+});

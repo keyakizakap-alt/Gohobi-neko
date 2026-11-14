@@ -66,6 +66,24 @@
 
 共通プロンプト：Photorealistic studio photo of the same young silver tabby cat with white chest, white muzzle and white paws, pink nose, large amber-green eyes, fluffy short fur. Full body, sitting, facing the camera, centered, plain pure white background, soft even lighting, no props, no text. ＋状態ごとの一文
 
+### セキュリティ・動作の検証（2026-11-14）
+
+| 観点 | 結果 | 対応 |
+| --- | --- | --- |
+| 依存ライブラリの既知の脆弱性（`npm audit`） | 0件（本番・開発とも） | なし |
+| 危険な書き方（`dangerouslySetInnerHTML`・`eval`・`innerHTML` など） | なし。React が文字として表示する | E2E で HTML 入りのタスク名が実行されないことを確認 |
+| 秘密情報の混入 | なし | なし |
+| HTTP セキュリティヘッダー | **未設定だった** | CSP（外部スクリプト・外部通信・iframe 埋め込みを禁止）、X-Content-Type-Options、X-Frame-Options、Referrer-Policy、Permissions-Policy、COOP を追加。X-Powered-By を削除 |
+| 細工したバックアップ | **XP を極端に大きくすると、レベル計算が終わらず画面が固まった** | レベル計算を式に変更し、XP・個数・日時・件数・ID 長に上限を設定。`__proto__` などの余計なキーは取り込まない |
+| 壊れた・大きすぎるファイル | 拒否される（5MB まで） | E2E を追加 |
+| 連打（完了・エサ） | 二重にならない（1トランザクション内で確認している） | E2E を追加 |
+| 複数タブで同時に使う | **片方の操作がもう片方に反映されず、表示が古いままだった**（データは壊れない） | BroadcastChannel で変更を通知し、タブに戻ったときも読み直す |
+| IndexedDB が使えない環境 | 説明つきのエラー画面が出る | E2E を追加 |
+| 開発サーバー（CSP 適用後） | エラーなし | 開発時のみ `unsafe-eval` と WebSocket を許可 |
+| 初回表示の通信量 | 約 1.4MB（圧縮前）。フォント 409KB・JS 540KB・CSS 334KB・ねこ写真 103KB | 改善候補として記録 |
+
+CSP の `script-src` は、Next.js が出力するインラインスクリプトのため `'unsafe-inline'` を含みます。外部から HTML を差し込む経路はないため、外部スクリプトの読み込み禁止を優先しました。nonce 方式にするとページが静的生成でなくなるため見送っています。
+
 ## 2. 実装済み機能（動作確認済み）
 
 - 初回起動時の名付け（空の名前は拒否）
@@ -86,8 +104,8 @@
 | 種別 | コマンド | 結果 |
 | --- | --- | --- |
 | 型チェック | `npm run typecheck` | エラーなし |
-| 単体テスト | `npm test` | 3ファイル 36件 すべて成功 |
-| E2E テスト | `npm run e2e` | 8シナリオ × 2画面幅（1280×800 / Pixel 7）＝16件 すべて成功 |
+| 単体テスト | `npm test` | 3ファイル 40件 すべて成功 |
+| E2E テスト | `npm run e2e` | 15シナリオ × 2画面幅（1280×800 / Pixel 7）＝30件 すべて成功（うちセキュリティ・異常系 7シナリオ） |
 | ビルド | `npm run build` | 成功（全ページ静的生成） |
 | レスポンシブ | スクリーンショット目視（390 / 820 / 1440px）＋ E2E で横スクロールなしを確認 | 問題なし |
 | コンソールエラー | 主要フロー操作中のブラウザコンソール | エラーなし |

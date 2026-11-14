@@ -5,6 +5,7 @@
 import type { Db } from "./db";
 import {
   GameError,
+  MAX_XP,
   SCHEMA_VERSION,
   DIFFICULTIES,
   FOOD_IDS,
@@ -221,10 +222,18 @@ export async function exportAll(db: Db, now = Date.now()): Promise<ExportData> {
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
-const isCount = (v: unknown): v is number => isNum(v) && Number.isInteger(v) && v >= 0;
+/** 個数（在庫・回数）の上限。細工したデータで表示が崩れないようにする */
+const MAX_COUNT = 1_000_000;
+const isCount = (v: unknown): v is number => isNum(v) && Number.isInteger(v) && v >= 0 && v <= MAX_COUNT;
+/** 日時：2000年〜「今から1日後」まで。未来すぎる値は満腹度などの計算を狂わせる */
+const MIN_TS = Date.UTC(2000, 0, 1);
+const isTs = (v: unknown, now: number): v is number => isNum(v) && v >= MIN_TS && v <= now + 86_400_000;
+/** 1ファイルに含められる件数の上限 */
+const MAX_TASKS = 5_000;
+const MAX_EVENTS = 20_000;
 
 /** インポートデータを検証し、安全な形に組み立て直す。不正なら GameError(INVALID) */
-export function parseExportData(raw: unknown): ExportData {
+export function parseExportData(raw: unknown, now = Date.now()): ExportData {
   const bad = (why: string): never => {
     throw new GameError("INVALID", `バックアップを読み込めません（${why}）`);
   };
@@ -233,7 +242,7 @@ export function parseExportData(raw: unknown): ExportData {
   const s = raw.state;
   if (!isObj(s) || !isObj(s.cat) || !isObj(s.inventory)) return bad("ねこのデータがありません");
   const c = s.cat;
-  if (typeof c.name !== "string" || !isNum(c.xp) || c.xp < 0 || !isNum(c.fullness) || !isNum(c.fullnessAt) || !isNum(c.bornAt)) {
+  if (typeof c.name !== "string" || !isNum(c.xp) || c.xp < 0 || c.xp > MAX_XP || !isNum(c.fullness) || !isTs(c.fullnessAt, now) || !isTs(c.bornAt, now)) {
     return bad("ねこのデータが壊れています");
   }
   const inv = s.inventory;
@@ -251,15 +260,16 @@ export function parseExportData(raw: unknown): ExportData {
       name: normalizeCatName(c.name),
       xp: Math.floor(c.xp),
       fullness: Math.max(0, Math.min(100, c.fullness)),
-      fullnessAt: c.fullnessAt,
+      fullnessAt: Math.min(c.fullnessAt, now),
       petCount: isCount(c.petCount) ? c.petCount : 0,
       totalFeeds: isCount(c.totalFeeds) ? c.totalFeeds : 0,
-      bornAt: c.bornAt,
-      ...(isNum(c.lastPetAt) ? { lastPetAt: c.lastPetAt } : {}),
+      bornAt: Math.min(c.bornAt, now),
+      ...(isTs(c.lastPetAt, now) ? { lastPetAt: c.lastPetAt } : {}),
     },
     inventory,
   };
   if (!Array.isArray(raw.tasks) || !Array.isArray(raw.events)) return bad("タスクのデータがありません");
+  if (raw.tasks.length > MAX_TASKS || raw.events.length > MAX_EVENTS) return bad("データが多すぎます");
   const ids = new Set<string>();
   const tasks: Task[] = raw.tasks.map((t: unknown): Task => {
     if (!isObj(t) || typeof t.id !== "string" || !t.id || ids.has(t.id)) return bad("タスクIDが不正です");
@@ -268,7 +278,8 @@ export function parseExportData(raw: unknown): ExportData {
       return bad("タスクの内容が不正です");
     }
     if (t.status !== "todo" && t.status !== "done") return bad("タスクの状態が不正です");
-    if (!isNum(t.createdAt)) return bad("タスクの日時が不正です");
+    if (!isTs(t.createdAt, now)) return bad("タスクの日時が不正です");
+    if (t.id.length > 64) return bad("タスクIDが不正です");
     const dueDate = typeof t.dueDate === "string" && isValidDateKey(t.dueDate) ? t.dueDate : null;
     const v = normalizeTaskInput({
       title: t.title,
@@ -282,25 +293,25 @@ export function parseExportData(raw: unknown): ExportData {
       status: t.status,
       rewardClaimed: t.rewardClaimed === true || t.status === "done",
       createdAt: t.createdAt,
-      updatedAt: isNum(t.updatedAt) ? t.updatedAt : t.createdAt,
-      completedAt: t.status === "done" ? (isNum(t.completedAt) ? t.completedAt : t.createdAt) : null,
+      updatedAt: isTs(t.updatedAt, now) ? t.updatedAt : t.createdAt,
+      completedAt: t.status === "done" ? (isTs(t.completedAt, now) ? t.completedAt : t.createdAt) : null,
     };
   });
   const stageIds = new Set<string>(STAGES.map((x) => x.id));
   const events: GameEvent[] = raw.events.map((e: unknown): GameEvent => {
-    if (!isObj(e) || !isNum(e.at)) return bad("履歴が不正です");
+    if (!isObj(e) || !isTs(e.at, now)) return bad("履歴が不正です");
     if (e.type !== "reward" && e.type !== "feed" && e.type !== "levelup" && e.type !== "evolve") {
       return bad("履歴の種類が不正です");
     }
     const ev: GameEvent = { type: e.type, at: e.at };
     if (typeof e.foodId === "string" && (FOOD_IDS as string[]).includes(e.foodId)) ev.foodId = e.foodId as FoodId;
     if (typeof e.taskTitle === "string") ev.taskTitle = e.taskTitle.slice(0, 80);
-    if (isNum(e.level)) ev.level = e.level;
+    if (isNum(e.level) && Number.isInteger(e.level) && e.level >= 1 && e.level <= 10_000) ev.level = e.level;
     if (typeof e.stage === "string" && stageIds.has(e.stage)) ev.stage = e.stage as GameEvent["stage"];
     return ev;
   });
   events.sort((a, b) => a.at - b.at);
-  return { app: "gohobi-neko", schemaVersion: SCHEMA_VERSION, exportedAt: isNum(raw.exportedAt) ? raw.exportedAt : Date.now(), state, tasks, events };
+  return { app: "gohobi-neko", schemaVersion: SCHEMA_VERSION, exportedAt: isTs(raw.exportedAt, now) ? raw.exportedAt : now, state, tasks, events };
 }
 
 /** 既存データをすべて置き換える（1トランザクション。失敗時は元のまま） */

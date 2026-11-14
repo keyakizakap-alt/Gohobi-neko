@@ -78,9 +78,14 @@ export function xpForLevel(level: number): number {
   return 10 * l * (l - 1);
 }
 
+/** 受け付ける XP の上限（Lv.10000 相当）。細工したデータで計算が重くならないようにする */
+export const MAX_XP = xpForLevel(10_000);
+
 export function levelFromXp(xp: number): number {
-  const safe = Math.max(0, xp);
-  let level = 1;
+  const safe = Number.isFinite(xp) ? Math.min(Math.max(0, xp), MAX_XP) : 0;
+  // 10 * L * (L - 1) <= xp を満たす最大の L を式で求め、丸め誤差だけ前後で補正する
+  let level = Math.max(1, Math.floor((1 + Math.sqrt(1 + 0.4 * safe)) / 2));
+  while (level > 1 && xpForLevel(level) > safe) level--;
   while (xpForLevel(level + 1) <= safe) level++;
   return level;
 }
@@ -251,7 +256,7 @@ export function applyFeed(
   }
   const food = FOODS[foodId];
   const levelBefore = levelFromXp(state.cat.xp);
-  const xp = state.cat.xp + food.xp;
+  const xp = Math.min(state.cat.xp + food.xp, MAX_XP);
   const levelAfter = levelFromXp(xp);
   const fullness = Math.min(100, currentFullness(state.cat, now) + food.fullness);
   return {
