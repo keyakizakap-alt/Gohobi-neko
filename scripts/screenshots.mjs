@@ -103,7 +103,7 @@ for (const [device, viewport] of [["mobile", { width: 390, height: 844 }], ["tab
     await page.goto(base);
     await page.getByTestId("feed-kibble").click();
     await page.getByTestId("levelup-level").waitFor();
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(2600); // 進化の演出が終わるまで待つ
     await page.screenshot({ path: `${out}${device}-evolve.png` });
     await page.getByRole("button", { name: "やったね" }).click();
 

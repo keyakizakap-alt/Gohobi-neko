@@ -26,6 +26,7 @@ import {
   weekRecord,
   type Mood,
 } from "@/lib/game";
+import { ACTION_MS, nextIdleDelay, pickIdleAction, shouldSleep, type IdleAction } from "@/lib/behavior";
 import { toMessage, useStore } from "@/lib/store";
 import type { FeedOutcome, FoodId } from "@/lib/types";
 
@@ -44,6 +45,8 @@ function idleLine(mood: Mood, todo: number, foodTotal: number, seed: number): st
 
 const PET_LINES = ["ごろごろ…", "にゃ〜ん", "そこ、きもちいいにゃ", "もっと なでてにゃ"];
 const EAT_LINES = ["もぐもぐ…おいしいにゃ！", "うまうま…", "しあわせの あじにゃ〜"];
+const IDLE_LINES: Record<IdleAction, string> = { yawn: "ふあぁ〜…", groom: "ぺろぺろ…" };
+const WAKE_LINE = "…はっ、おはようにゃ";
 
 export default function HomePage() {
   const store = useStore();
@@ -56,6 +59,9 @@ export default function HomePage() {
   const [xpPop, setXpPop] = useState<{ key: number; amount: number } | null>(null);
   const [hearts, setHearts] = useState(0);
   const [petted, setPetted] = useState(false);
+  const [idleAction, setIdleAction] = useState<IdleAction | null>(null);
+  const [sleeping, setSleeping] = useState(false);
+  const lastActive = useRef(Date.now());
   const [line, setLine] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<FeedOutcome | null>(null);
   const [adding, setAdding] = useState(false);
@@ -105,8 +111,46 @@ export default function HomePage() {
   const notes = careNotes({ fullness, mood: moodValue, affection, fedToday, doneToday, todoCount, streak, foodTotal });
   const shown = filterTasks(todays, filter);
 
-  const bubble = line ?? idleLine(mood, todo.length, foodTotal, new Date(store.now).getHours() + todo.length);
-  const face = eating ? "eating" : petted ? "happy" : mood;
+  const bubble = line ?? (idleAction ? IDLE_LINES[idleAction] : sleeping ? "すや すや…" : null) ?? idleLine(mood, todo.length, foodTotal, new Date(store.now).getHours() + todo.length);
+  const face = eating ? "eating" : petted ? "happy" : idleAction ?? (sleeping ? "sleep" : mood);
+
+  // 画面のどこかを触ったら「起きている」扱いにする
+  useEffect(() => {
+    const mark = () => {
+      lastActive.current = Date.now();
+    };
+    window.addEventListener("pointerdown", mark);
+    window.addEventListener("keydown", mark);
+    return () => {
+      window.removeEventListener("pointerdown", mark);
+      window.removeEventListener("keydown", mark);
+    };
+  }, []);
+
+  // ひとり遊び：何もしていないとき、ときどき あくび・毛づくろい をし、しばらく放っておくと眠る
+  const stateRef = useRef({ phase, mood, eating, petted, idleAction, sleeping });
+  stateRef.current = { phase, mood, eating, petted, idleAction, sleeping };
+  useEffect(() => {
+    let timer = 0;
+    const tick = () => {
+      const st = stateRef.current;
+      const quiet = !st.eating && !st.petted && !st.idleAction && !busy.current && document.visibilityState === "visible";
+      if (quiet && !st.sleeping) {
+        if (shouldSleep(st.phase, Date.now() - lastActive.current, st.mood)) {
+          setSleeping(true);
+        } else {
+          const action = pickIdleAction(Math.random(), st.phase, st.mood);
+          if (action) {
+            setIdleAction(action);
+            window.setTimeout(() => setIdleAction(null), ACTION_MS[action]);
+          }
+        }
+      }
+      timer = window.setTimeout(tick, nextIdleDelay(Math.random()));
+    };
+    timer = window.setTimeout(tick, nextIdleDelay(Math.random()));
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const say = useCallback(
     (text: string, ms: number) => {
@@ -122,6 +166,8 @@ export default function HomePage() {
       busy.current = true;
       try {
         const r = await store.feed(foodId);
+        setSleeping(false);
+        setIdleAction(null);
         setEating(foodId);
         // スマホでは「ごはん」ボタンの位置からねこが見えないことがあるので、部屋まで戻す
         document.getElementById("cat-room")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -142,12 +188,22 @@ export default function HomePage() {
   );
 
   const onPet = useCallback(() => {
+    if (sleeping) {
+      // 眠っているときは、なでると目をさまして あくびをする
+      setSleeping(false);
+      setIdleAction("yawn");
+      later(() => setIdleAction(null), ACTION_MS.yawn);
+      say(WAKE_LINE, ACTION_MS.yawn + 600);
+      store.pet().catch(() => undefined);
+      return;
+    }
+    setIdleAction(null);
     setHearts((n) => n + 1);
     setPetted(true);
     later(() => setPetted(false), 1200);
     say(PET_LINES[cat.petCount % PET_LINES.length]!, 1800);
     store.pet().catch(() => undefined); // なでた回数は記録できなくても遊びを止めない
-  }, [cat.petCount, later, say, store]);
+  }, [cat.petCount, later, say, store, sleeping]);
 
   return (
     <div className="dash">

@@ -193,3 +193,40 @@ test("横スクロールが発生しない", async ({ page }) => {
     expect(overflow, `${path} が横にはみ出している`).toBeLessThanOrEqual(0);
   }
 });
+
+test("放っておくと眠り、なでると起きる（夜）", async ({ page }) => {
+  const night = new Date();
+  night.setHours(22, 0, 0, 0);
+  await page.clock.install({ time: night.getTime() });
+  await start(page);
+  const cat = page.locator(".room__cat");
+  await expect(cat).not.toHaveAttribute("data-face", "sleep");
+  await page.clock.runFor(60_000);
+  await expect(cat).toHaveAttribute("data-face", "sleep");
+  await expect(page.getByRole("button", { name: "たまを起こす" })).toBeVisible();
+  await cat.click();
+  await expect(cat).toHaveAttribute("data-face", "yawn");
+  await expect(page.locator(".room__bubble")).toContainText("おはよう");
+});
+
+test("Lv.5になると進化の演出が出て、姿が変わる", async ({ page }) => {
+  await start(page);
+  const now = Date.now();
+  const data = {
+    app: "gohobi-neko", schemaVersion: 1, exportedAt: now,
+    state: { id: "main", schemaVersion: 1, onboarded: true, inventory: { kibble: 1, fish: 0, feast: 0 },
+      cat: { name: "たま", xp: 190, fullness: 60, fullnessAt: now, petCount: 0, totalFeeds: 0, bornAt: now } },
+    tasks: [], events: [],
+  };
+  await nav(page, "せってい").click();
+  await page.getByTestId("import-file").setInputFiles({ name: "b.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(data)) });
+  await page.getByRole("dialog").getByRole("button", { name: "復元する" }).click();
+  await nav(page, "ホーム").click();
+  await page.getByTestId("feed-kibble").click();
+  const stage = page.getByTestId("evolve-stage");
+  await expect(stage).toBeVisible();
+  await expect(stage.getByRole("img", { name: "わかねこになったたま" })).toBeVisible();
+  await expect(page.getByTestId("levelup-level")).toHaveText("Lv.5");
+  await page.getByRole("button", { name: "やったね" }).click();
+  await expect(page.locator(".lvcard__stage")).toHaveText("わかねこ");
+});

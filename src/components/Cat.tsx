@@ -1,6 +1,6 @@
 import type { StageId } from "@/lib/types";
 
-export type CatFace = "normal" | "happy" | "hungry" | "eating";
+export type CatFace = "normal" | "happy" | "hungry" | "eating" | "yawn" | "groom" | "sleep";
 
 interface Props {
   stage: StageId;
@@ -119,6 +119,15 @@ export function Cat({ stage, face = "normal", animated = true, silhouette = fals
               <path d="M82 93 Q92 86 104 85M158 93 Q148 86 136 85" stroke={C.ink} strokeWidth="3" strokeLinecap="round" fill="none" />
             </g>
 
+            <g className="cat__eyes cat__eyes--squeeze" fill="none" stroke={C.ink} strokeWidth="4.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M86 94 L102 100 L86 105" />
+              <path d="M154 94 L138 100 L154 105" />
+            </g>
+            <g className="cat__eyes cat__eyes--closed" fill="none" stroke={C.ink} strokeWidth="4" strokeLinecap="round">
+              <path d="M85 100 Q95 108 105 100" />
+              <path d="M135 100 Q145 108 155 100" />
+            </g>
+
             {/* 鼻と口 */}
             <path d="M114.5 112 h11 q1.5 0 .5 1.5 l-5 5.5 q-1 1-2 0 l-5-5.5 q-1-1.5 .5-1.500z" fill={C.pink} stroke="#d9837a" strokeWidth="1" />
             <g className="cat__mouth cat__mouth--closed" fill="none" stroke={C.ink} strokeWidth="2.8" strokeLinecap="round">
@@ -129,6 +138,17 @@ export function Cat({ stage, face = "normal", animated = true, silhouette = fals
             <g className="cat__mouth cat__mouth--open">
               <path d="M108 124 Q120 121 132 124 Q131 143 120 143 Q109 143 108 124 Z" fill="#8f3a36" stroke={C.ink} strokeWidth="2.4" strokeLinejoin="round" />
               <path d="M113 138 Q120 131 127 138 Q124 142 120 142 Q116 142 113 138 Z" fill="#f08d86" />
+            </g>
+            {/* 大きなあくびの口 */}
+            <g className="cat__mouth cat__mouth--yawn">
+              <path d="M104 122 Q120 117 136 122 Q138 152 120 154 Q102 152 104 122 Z" fill="#8f3a36" stroke={C.ink} strokeWidth="2.4" strokeLinejoin="round" />
+              <path d="M108 145 Q120 136 132 145 Q128 152 120 152 Q112 152 108 145 Z" fill="#f08d86" />
+              <path d="M108 124 l3 6 3-6M126 124 l3 6 3-6" fill="#fff" stroke={C.ink} strokeWidth="1" strokeLinejoin="round" />
+            </g>
+            {/* 毛づくろいの舌 */}
+            <g className="cat__mouth cat__mouth--lick">
+              <path d="M120 120v4M120 124 Q115 129 109 126M120 124 Q125 129 131 126" fill="none" stroke={C.ink} strokeWidth="2.6" strokeLinecap="round" />
+              <path className="cat__tongue" d="M115 127 Q120 125 125 127 Q126 136 120 137 Q114 136 115 127 Z" fill="#f08d86" stroke="#c8605a" strokeWidth="1.4" />
             </g>
             <path className="cat__whiskers" d="M84 124 L52 118 M84 130 L54 134 M156 124 L188 118 M156 130 L186 134" stroke={C.ink} strokeWidth="1.8" strokeLinecap="round" opacity=".45" />
 
@@ -163,6 +183,21 @@ export function Cat({ stage, face = "normal", animated = true, silhouette = fals
               </g>
             )}
           </g>
+        </g>
+
+        {/* 毛づくろいで持ち上げる前足（groom のときだけ表示） */}
+        <g className="cat__paw" transform={`translate(0 ${headDy})`}>
+          <path d="M112 196 C 104 176, 106 156, 114 140" fill="none" stroke={C.line} strokeWidth="23" strokeLinecap="round" />
+          <path d="M112 196 C 104 176, 106 156, 114 140" fill="none" stroke={C.cream} strokeWidth="18" strokeLinecap="round" />
+          <ellipse cx="114" cy="136" rx="13" ry="11" fill={C.cream} stroke={C.line} strokeWidth="2.2" />
+          <path d="M108 129 q2 3 0 6M114 127 q2 3 0 7M120 129 q2 3 0 6" stroke={C.ink} strokeWidth="1.5" strokeLinecap="round" fill="none" opacity=".35" />
+        </g>
+
+        {/* 寝息 */}
+        <g className="cat__zzz" fill="#5b6bb0" stroke="#fff" strokeWidth="4" paintOrder="stroke" fontWeight="900">
+          <text x="164" y="80" fontSize="34">Z</text>
+          <text x="190" y="52" fontSize="26">z</text>
+          <text x="208" y="30" fontSize="19">z</text>
         </g>
       </g>
     </svg>
