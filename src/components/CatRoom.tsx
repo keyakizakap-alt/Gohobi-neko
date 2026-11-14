@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Cat, type CatFace } from "./Cat";
-import { FoodIcon, HeartIcon } from "./Icons";
+import { HeartIcon } from "./Icons";
 import type { FoodId, StageId } from "@/lib/types";
 
 export type DayPhase = "morning" | "day" | "evening" | "night";
@@ -198,7 +198,6 @@ export function CatRoom({ name, stage, face, phase, bubble, eatingFood, heartBur
       </button>
 
       <div className={`room__bowl${eatingFood ? " room__bowl--full" : ""}`} aria-hidden>
-        {eatingFood && <FoodIcon food={eatingFood} size={46} className="room__food" />}
         <svg viewBox="0 0 90 44" className="room__bowl-svg">
           <ellipse cx="45" cy="39" rx="38" ry="4.500" fill="#7d4a2b" opacity=".12" />
           <path d="M8 12h74l-8 23a7 7 0 0 1-6.600 5H22.600a7 7 0 0 1-6.600-5z" fill="#fffaf2" stroke="#e3c8a6" strokeWidth="2" strokeLinejoin="round" />

@@ -550,8 +550,8 @@ fieldset:disabled .choice__item { opacity: 0.6; cursor: not-allowed; }
 .room__cat {
   position: absolute;
   left: 50%;
-  bottom: 6%;
-  width: 44%;
+  bottom: 4%;
+  width: 34%;
   padding: 0;
   border: 0;
   background: none;
@@ -559,19 +559,10 @@ fieldset:disabled .choice__item { opacity: 0.6; cursor: not-allowed; }
   z-index: 2;
   border-radius: 40% 40% 30% 30%;
 }
-.room__cat .cat { display: block; width: 100%; height: auto; transition: transform 0.2s; }
+.room__cat .cat { display: block; transition: transform 0.2s; }
 .room__cat:active .cat { transform: scale(0.97, 0.94); transform-origin: 50% 100%; }
 .room__bowl { position: absolute; left: 9%; bottom: 6%; width: 21%; z-index: 3; }
 .room__bowl-svg { display: block; width: 100%; }
-.room__food {
-  position: absolute;
-  left: 50%;
-  bottom: 52%;
-  width: 62%;
-  height: auto;
-  transform: translateX(-50%);
-  animation: food-eaten 1.7s ease-in forwards;
-}
 .room__bubble {
   position: absolute;
   top: 27%;
@@ -770,7 +761,8 @@ fieldset:disabled .choice__item { opacity: 0.6; cursor: not-allowed; }
   }
   .pantry__hint svg { color: var(--accent); flex: none; }
   .room { aspect-ratio: 1 / 1; border-radius: 16px; }
-  .room__bubble { top: 37%; max-width: 62%; }
+  .room__bubble { top: 30%; right: 3%; max-width: 48%; }
+  .room__cat { width: 40%; }
   .lvcard { width: 164px; }
   .roomcard__scene { align-self: start; }
 }
@@ -916,8 +908,8 @@ fieldset:disabled .choice__item { opacity: 0.6; cursor: not-allowed; }
 .album__item { position: relative; padding: 10px 8px 12px; border: 1.5px solid var(--line); border-radius: var(--radius-m); background: #fff; text-align: center; }
 .album__item.is-current { border-color: var(--accent); background: var(--accent-faint); box-shadow: 0 0 0 3px var(--accent-soft); }
 .album__item.is-locked { background: #faf5ef; border-style: dashed; }
-.album__pic { height: 104px; display: grid; place-items: end center; }
-.album__pic .cat { height: 104px; width: auto; }
+.album__pic { height: 120px; display: grid; place-items: end center; }
+.album__pic .cat { height: 120px; width: 80px; }
 .album__name { font-weight: 900; margin-top: 4px; }
 .album__lv { font-size: 0.76rem; color: var(--ink-soft); }
 .album__now {
@@ -945,11 +937,11 @@ fieldset:disabled .choice__item { opacity: 0.6; cursor: not-allowed; }
 
 /* ---------- 状態表示・初回・お祝い ---------- */
 .state { min-height: 60dvh; display: grid; place-content: center; justify-items: center; gap: 12px; text-align: center; color: var(--ink-soft); }
-.state__cat { width: 140px; }
+.state__cat { width: 110px; }
 .state__title { font-size: 1.3rem; color: var(--ink); }
 .onboard, .levelup { position: relative; display: grid; justify-items: center; gap: 14px; text-align: center; }
 .onboard .form { width: 100%; text-align: left; }
-.onboard__cat, .levelup__cat { width: 170px; margin: -6px 0 -4px; }
+.onboard__cat, .levelup__cat { width: 120px; margin: -6px 0 -4px; }
 .levelup__cat { animation: hop 0.9s cubic-bezier(0.3, 1.5, 0.5, 1) 2; }
 .onboard__lead, .levelup__text { font-size: 0.95rem; }
 .levelup__level { padding: 2px 18px; border-radius: 999px; background: var(--sun-soft); color: var(--accent-deep); font-weight: 700; font-size: 1.1rem; }
@@ -975,8 +967,8 @@ fieldset:disabled .choice__item { opacity: 0.6; cursor: not-allowed; }
   place-items: end center;
   margin: -4px 0 0;
 }
-.evolve__cat { position: absolute; left: 50%; bottom: 8px; width: 180px; transform: translateX(-50%); }
-.evolve__cat .cat { display: block; width: 100%; height: auto; }
+.evolve__cat { position: absolute; left: 50%; bottom: 8px; width: 140px; transform: translateX(-50%); }
+.evolve__cat .cat { display: block; }
 .evolve__cat--before { animation: evolve-before 1.25s ease-in forwards; }
 .evolve__cat--after { opacity: 0; animation: evolve-after 0.9s 1.15s cubic-bezier(0.25, 1.6, 0.45, 1) forwards; }
 .evolve__rays {
@@ -1088,201 +1080,143 @@ fieldset:disabled .choice__item { opacity: 0.6; cursor: not-allowed; }
 .sleep__dream { animation: dream 4s ease-in-out infinite; transform-origin: 140px 60px; }
 @keyframes dream { 50% { transform: translateY(-4px); } }
 
-/* ---------- ねこ（SVG）のうごき ---------- */
+/* ---------- ねこ（写真）の表示とうごき ---------- */
 .cat {
-  overflow: visible;
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  vertical-align: bottom;
 }
-.cat__eyes,
-.cat__mouth--open,
-.cat__mouth--yawn,
-.cat__mouth--lick,
-.cat__paw,
-.cat__zzz {
-  display: none;
+.cat__body {
+  position: absolute;
+  inset: 0;
+  transform: scale(var(--cat-scale, 1));
+  transform-origin: 50% 97%;
 }
-.cat--normal .cat__eyes--open,
-.cat--happy .cat__eyes--smile,
-.cat--eating .cat__eyes--smile,
-.cat--hungry .cat__eyes--sad,
-.cat--yawn .cat__eyes--squeeze,
-.cat--groom .cat__eyes--closed,
-.cat--sleep .cat__eyes--closed {
-  display: inline;
+.cat__photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
 }
-.cat--eating .cat__mouth--closed,
-.cat--yawn .cat__mouth--closed,
-.cat--groom .cat__mouth--closed {
-  display: none;
+.cat__shadow {
+  position: absolute;
+  left: 18%;
+  right: 14%;
+  bottom: 1.5%;
+  height: 5%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(60, 40, 25, 0.32), transparent);
 }
-.cat--eating .cat__mouth--open,
-.cat--yawn .cat__mouth--yawn,
-.cat--groom .cat__mouth--lick,
-.cat--groom .cat__paw,
-.cat--sleep .cat__zzz {
-  display: inline;
+.cat__blink { opacity: 0; }
+.cat__collar {
+  position: absolute;
+  width: 34%;
+  transform: translate(-50%, -38%);
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.25));
 }
-.cat--hungry .cat__blush {
-  opacity: 0.2;
-}
-.cat--silhouette {
-  filter: brightness(0);
-  opacity: 0.16;
-}
-.cat__eye,
-.cat__mouth--open,
-.cat__ear,
 .cat__crown {
-  transform-box: fill-box;
+  position: absolute;
+  width: 28%;
+  transform: translate(-50%, -78%) rotate(-4deg);
+  filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.3));
 }
-.cat--animated .cat__tail {
-  transform-origin: 160px 206px;
-  animation: tail 2.6s ease-in-out infinite alternate;
+.cat--eating .cat__crown { width: 22%; transform: translate(-50%, -70%) rotate(6deg); }
+.cat__zzz {
+  position: absolute;
+  right: -34%;
+  top: 4%;
+  width: 40%;
+  height: 20%;
+  font-weight: 900;
+  color: #5b6bb0;
+  -webkit-text-stroke: 4px #fff;
+  paint-order: stroke fill;
+  pointer-events: none;
 }
-.cat--animated.cat--hungry .cat__tail {
-  animation-duration: 5s;
+.cat__zzz i { position: absolute; font-style: normal; opacity: 0; }
+.cat__zzz i:nth-child(1) { right: 34px; top: 52px; font-size: 26px; }
+.cat__zzz i:nth-child(2) { right: 16px; top: 28px; font-size: 20px; }
+.cat__zzz i:nth-child(3) { right: 2px; top: 8px; font-size: 15px; }
+
+/* 表情ごとの色味 */
+.cat--hungry .cat__photo { filter: saturate(0.55) brightness(0.94); }
+.cat--sleep .cat__photo { filter: brightness(0.9) saturate(0.85); }
+.cat--silhouette .cat__photo { filter: brightness(0); opacity: 0.16; }
+.cat--silhouette .cat__shadow { display: none; }
+
+/* うごき */
+.cat--animated .cat__photo:not(.cat__blink) { transform-origin: 50% 97%; animation: c-breathe 3.4s ease-in-out infinite; }
+.cat--animated .cat__blink { animation: c-blink 5.2s steps(1) infinite, c-breathe 3.4s ease-in-out infinite; transform-origin: 50% 97%; }
+.cat--animated.cat--happy .cat__body { animation: c-nuzzle 0.7s ease-in-out infinite alternate; transform-origin: 50% 97%; }
+.cat--animated.cat--eating .cat__body { animation: c-munch 0.42s ease-in-out infinite alternate; }
+.cat--animated.cat--yawn .cat__body { animation: c-yawn 2.2s ease-in-out both; }
+.cat--animated.cat--groom .cat__body { animation: c-groom 0.6s ease-in-out infinite alternate; }
+.cat--animated.cat--sleep .cat__photo { animation-duration: 4.6s; }
+.cat--animated.cat--hungry .cat__body { animation: c-droop 4s ease-in-out infinite; }
+.cat--animated .cat__zzz i { animation: c-zzz 3s ease-in-out infinite; }
+.cat--animated .cat__zzz i:nth-child(2) { animation-delay: 0.6s; }
+.cat--animated .cat__zzz i:nth-child(3) { animation-delay: 1.2s; }
+.cat--animated .cat__crown { animation: c-crown 3.2s ease-in-out infinite; }
+
+@keyframes c-breathe { 50% { transform: scale(1.006, 1.014); } }
+@keyframes c-blink { 0%, 95% { opacity: 0; } 96%, 98% { opacity: 1; } }
+@keyframes c-nuzzle { from { transform: scale(var(--cat-scale, 1)) rotate(-2.2deg); } to { transform: scale(var(--cat-scale, 1)) rotate(2.2deg); } }
+@keyframes c-munch { from { transform: scale(var(--cat-scale, 1)) translateY(0); } to { transform: scale(var(--cat-scale, 1)) translateY(1.6%); } }
+@keyframes c-yawn {
+  0%, 100% { transform: scale(var(--cat-scale, 1)); }
+  35%, 70% { transform: scale(calc(var(--cat-scale, 1) * 1.02), calc(var(--cat-scale, 1) * 1.05)) rotate(-1.5deg); }
 }
-.cat--animated.cat--happy .cat__tail,
-.cat--animated.cat--eating .cat__tail {
-  animation-duration: 0.9s;
-}
-.cat--animated .cat__torso {
-  transform-origin: 120px 236px;
-  animation: breathe 3.2s ease-in-out infinite;
-}
-.cat--animated .cat__head {
-  transform-origin: 120px 150px;
-  animation: head-tilt 6.4s ease-in-out infinite;
-}
-.cat--animated.cat--eating .cat__head {
-  animation: munch 0.34s ease-in-out infinite alternate;
-}
-.cat--animated.cat--happy .cat__head {
-  animation: nuzzle 0.6s ease-in-out infinite alternate;
-}
-.cat--animated .cat__eye {
-  transform-origin: center;
-  animation: blink 4.6s infinite;
-}
-.cat--animated .cat__ear--r {
-  transform-origin: 20% 100%;
-  animation: ear 7s ease-in-out infinite;
-}
-.cat--animated.cat--eating .cat__mouth--open {
-  transform-origin: 50% 0;
-  animation: chomp 0.34s ease-in-out infinite alternate;
-}
+@keyframes c-groom { from { transform: scale(var(--cat-scale, 1)) rotate(-3.5deg) translateY(0.8%); } to { transform: scale(var(--cat-scale, 1)) rotate(1deg) translateY(0); } }
+@keyframes c-droop { 0%, 100% { transform: scale(var(--cat-scale, 1)) translateY(0.6%); } 50% { transform: scale(var(--cat-scale, 1)) translateY(1.2%); } }
+@keyframes c-zzz { 0% { opacity: 0; transform: translate(-6px, 8px); } 30%, 60% { opacity: 0.85; } 100% { opacity: 0; transform: translate(6px, -12px); } }
+@keyframes c-crown { 50% { margin-top: -0.6%; } }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /* あくび：頭を上げて大きく口をあけ、耳をうしろへ */
-.cat--animated.cat--yawn .cat__head { animation: yawn-head 2.2s ease-in-out both; }
-.cat--animated.cat--yawn .cat__mouth--yawn { transform-box: fill-box; transform-origin: 50% 0; animation: yawn-mouth 2.2s ease-in-out both; }
-.cat--animated.cat--yawn .cat__ear--l { transform-origin: 90% 100%; animation: ear-back-l 2.2s ease-in-out both; }
-.cat--animated.cat--yawn .cat__ear--r { transform-origin: 10% 100%; animation: ear-back-r 2.2s ease-in-out both; }
-.cat--animated.cat--yawn .cat__torso { animation: yawn-stretch 2.2s ease-in-out both; transform-origin: 120px 236px; }
-@keyframes yawn-head { 0%, 100% { transform: rotate(0) translateY(0); } 30%, 70% { transform: rotate(-4deg) translateY(-6px); } }
-@keyframes yawn-mouth { 0%, 100% { transform: scale(0.3, 0.1); } 25%, 72% { transform: scale(1, 1); } }
-@keyframes ear-back-l { 30%, 70% { transform: rotate(-14deg); } }
-@keyframes ear-back-r { 30%, 70% { transform: rotate(14deg); } }
-@keyframes yawn-stretch { 30%, 70% { transform: scale(1.02, 1.05); } }
+
+
+
+
+
 
 /* 毛づくろい：前足を口元に上げ下げしながら、頭を小さく動かす */
-.cat--animated.cat--groom .cat__paw { transform-box: view-box; animation: groom-paw 0.7s ease-in-out infinite alternate; }
-.cat--animated.cat--groom .cat__head { animation: groom-head 0.7s ease-in-out infinite alternate; }
-.cat--animated.cat--groom .cat__tongue { transform-box: fill-box; transform-origin: 50% 0; animation: chomp 0.35s ease-in-out infinite alternate; }
-@keyframes groom-paw { from { transform: translate(0, 4px) rotate(0); } to { transform: translate(4px, -6px) rotate(-6deg); } }
-@keyframes groom-head { from { transform: rotate(4deg) translateY(2px); } to { transform: rotate(-2deg) translateY(4px); } }
+
+
+
 
 /* 眠る：頭を下げてゆっくり呼吸、しっぽは止める、Zzz がふわっと上がる */
-.cat--animated.cat--sleep .cat__head { animation: sleep-head 4s ease-in-out infinite; }
-.cat--animated.cat--sleep .cat__torso { animation-duration: 4s; }
-.cat--animated.cat--sleep .cat__tail { animation: none; }
-.cat--animated.cat--sleep .cat__eye { animation: none; }
-.cat--sleep .cat__blush { opacity: 0.75; }
-.cat--animated .cat__zzz text { opacity: 0; animation: zzz 3s ease-in-out infinite; }
-.cat--animated .cat__zzz text:nth-child(2) { animation-delay: 0.6s; }
-.cat--animated .cat__zzz text:nth-child(3) { animation-delay: 1.2s; }
-@keyframes sleep-head { 0%, 100% { transform: rotate(3deg) translateY(8px); } 50% { transform: rotate(3deg) translateY(10px); } }
-@keyframes zzz { 0% { opacity: 0; transform: translate(-6px, 8px); } 30%, 60% { opacity: 0.75; } 100% { opacity: 0; transform: translate(6px, -10px); } }
 
-.cat--animated .cat__crown {
-  transform-origin: 50% 100%;
-  animation: crown 3.2s ease-in-out infinite;
-}
 
-@keyframes tail {
-  from {
-    transform: rotate(-7deg);
-  }
-  to {
-    transform: rotate(13deg);
-  }
-}
-@keyframes breathe {
-  50% {
-    transform: scale(1.015, 1.025);
-  }
-}
-@keyframes head-tilt {
-  0%,
-  42%,
-  100% {
-    transform: rotate(0);
-  }
-  50%,
-  78% {
-    transform: rotate(-3.5deg);
-  }
-}
-@keyframes munch {
-  from {
-    transform: translateY(0) rotate(-1deg);
-  }
-  to {
-    transform: translateY(5px) rotate(1deg);
-  }
-}
-@keyframes nuzzle {
-  from {
-    transform: rotate(-4deg);
-  }
-  to {
-    transform: rotate(4deg);
-  }
-}
-@keyframes blink {
-  0%,
-  94%,
-  100% {
-    transform: scaleY(1);
-  }
-  97% {
-    transform: scaleY(0.08);
-  }
-}
-@keyframes ear {
-  0%,
-  88%,
-  100% {
-    transform: rotate(0);
-  }
-  91% {
-    transform: rotate(9deg);
-  }
-  94% {
-    transform: rotate(-3deg);
-  }
-}
-@keyframes chomp {
-  from {
-    transform: scaleY(1);
-  }
-  to {
-    transform: scaleY(0.35);
-  }
-}
-@keyframes crown {
-  50% {
-    transform: translateY(-2px) rotate(-2deg);
-  }
-}
+
+
+
+
+
+
+
+
 @keyframes pop {
   0% {
     transform: scale(0.6);
@@ -1339,23 +1273,6 @@ fieldset:disabled .choice__item { opacity: 0.6; cursor: not-allowed; }
   100% {
     opacity: 0;
     transform: translate(-50%, -30px) scale(1);
-  }
-}
-@keyframes food-eaten {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -60px) scale(0.7);
-  }
-  14% {
-    opacity: 1;
-    transform: translate(-50%, 4px) scale(1.08);
-  }
-  22% {
-    transform: translate(-50%, 0) scale(1);
-  }
-  100% {
-    opacity: 1;
-    transform: translate(-50%, 34%) scale(0.2);
   }
 }
 @keyframes drift {

@@ -51,6 +51,21 @@
 
 画像：`docs/screenshots/room-phases.png`、`cat-motions.png`、`evolve-sequence.png`
 
+### ねこを写真に変更（2026-11-14）
+
+依頼者が示した見本写真は「見本として見せただけ」のため使っていません。同じねこの状態別写真を AI で生成しました。
+
+| 項目 | 内容 |
+| --- | --- |
+| 生成 | Canva の AI 画像生成（依頼者の承認済みプロンプト）。「ふつう」を参照画像にして、残りの見た目をそろえた |
+| 取得できた写真 | ふつう・ごきげん・食べる・あくび の4枚（1080px）。毛づくろい・眠る・おなかぺこぺこは利用上限（quota_exceeded）で未生成 |
+| 代用 | 毛づくろい・眠る＝目を閉じた「ごきげん」＋動き／Zzz、おなかぺこぺこ＝「ふつう」を彩度を下げて表示 |
+| 加工 | rembg（isnet-general-use）で背景を切り抜き、足元の位置をそろえて WebP（計 約180KB） |
+| 成長段階 | 大きさ（こねこ76%〜ねこさま100%）と、首輪・リボン・王冠の SVG の重ね表示 |
+| 作業用ファイル | Canva に作業用デザイン「ごほうびねこ用ねこ写真ページ」を作成（高解像度の書き出しのため）。不要なら削除してかまわない |
+
+共通プロンプト：Photorealistic studio photo of the same young silver tabby cat with white chest, white muzzle and white paws, pink nose, large amber-green eyes, fluffy short fur. Full body, sitting, facing the camera, centered, plain pure white background, soft even lighting, no props, no text. ＋状態ごとの一文
+
 ## 2. 実装済み機能（動作確認済み）
 
 - 初回起動時の名付け（空の名前は拒否）
