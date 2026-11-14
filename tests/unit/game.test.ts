@@ -13,6 +13,11 @@ import {
   moodOf,
   normalizeCatName,
   normalizeTaskInput,
+  affectionOf,
+  careNotes,
+  moodScore,
+  satisfactionOf,
+  weekRecord,
   stageForLevel,
   xpForLevel,
 } from "@/lib/game";
@@ -138,5 +143,54 @@ describe("入力検証", () => {
     expect(normalizeCatName(" たま ")).toBe("たま");
     expect(() => normalizeCatName("")).toThrowError(GameError);
     expect(() => normalizeCatName("あ".repeat(13))).toThrowError(GameError);
+  });
+});
+
+describe("きげん・なつき度・満足度", () => {
+  it("なつき度はなでた回数とごはんの回数で上がり、100で止まる", () => {
+    expect(affectionOf({ petCount: 0, totalFeeds: 0 })).toBe(0);
+    expect(affectionOf({ petCount: 10, totalFeeds: 5 })).toBe(20);
+    expect(affectionOf({ petCount: 500, totalFeeds: 0 })).toBe(100);
+  });
+  it("きげんは満腹度が土台で、なでる・タスク完了で上がる", () => {
+    expect(moodScore(50, undefined, 0, T0)).toBe(30);
+    expect(moodScore(50, T0, 0, T0)).toBe(50); // なでた直後 +20
+    expect(moodScore(50, T0 - 3 * HOUR, 0, T0)).toBe(40); // 3時間後は半分
+    expect(moodScore(50, T0 - 7 * HOUR, 0, T0)).toBe(30); // 6時間で消える
+    expect(moodScore(50, undefined, 1, T0)).toBe(40);
+    expect(moodScore(50, undefined, 9, T0)).toBe(50); // タスクは最大+20
+    expect(moodScore(100, T0, 5, T0)).toBe(100);
+  });
+  it("満足度は3つの平均", () => {
+    expect(satisfactionOf(80, 92, 76)).toBe(83);
+  });
+});
+
+describe("今週の記録", () => {
+  // T0 = 2026-11-13（金）
+  it("月曜はじまりの7日ぶんを返す", () => {
+    const w = weekRecord([T0, T0 - 2 * DAY, T0 - 6 * DAY], T0);
+    expect(w.map((d) => d.label).join("")).toBe("月火水木金土日");
+    expect(w[0]!.dateKey).toBe("2026-11-09");
+    expect(w.map((d) => d.done)).toEqual([false, false, true, false, true, false, false]); // 6日前は先週なので含まない
+    expect(w[4]).toMatchObject({ isToday: true, isFuture: false });
+    expect(w[5]!.isFuture).toBe(true);
+  });
+  it("日曜日でも同じ週の月曜から始まる", () => {
+    const sunday = new Date(2026, 10, 15, 9).getTime();
+    const w = weekRecord([], sunday);
+    expect(w[0]!.dateKey).toBe("2026-11-09");
+    expect(w[6]!.isToday).toBe(true);
+  });
+});
+
+describe("育成メモ", () => {
+  const base = { fullness: 60, mood: 70, affection: 30, fedToday: 0, doneToday: 0, todoCount: 0, streak: 0, foodTotal: 0 };
+  it("状態に合ったメモを最大3つ返す", () => {
+    expect(careNotes({ ...base, fedToday: 2, mood: 40 })).toEqual(["今日はよく食べた", "なでるとごきげんアップ"]);
+    expect(careNotes({ ...base, fullness: 10, foodTotal: 2 })[0]).toContain("ごはんをあげましょう");
+    expect(careNotes({ ...base, fullness: 10 })[0]).toContain("タスクを終えて");
+    expect(careNotes({ ...base, fedToday: 3, streak: 7, doneToday: 2, mood: 30 }).length).toBe(3);
+    expect(careNotes({ ...base, streak: 7 })).toContain("7日つづけてタスクを達成中");
   });
 });

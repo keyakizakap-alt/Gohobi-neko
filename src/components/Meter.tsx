@@ -5,7 +5,7 @@ interface Props {
   /** 0〜1 */
   ratio: number;
   valueText: string;
-  tone: "xp" | "food";
+  tone: "xp" | "food" | "mood" | "love";
   icon?: ReactNode;
   testId?: string;
 }

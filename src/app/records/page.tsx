@@ -50,7 +50,6 @@ export default function RecordsPage() {
     <div className="page">
       <header className="page__head">
         <div>
-          <p className="page__eyebrow">RECORDS</p>
           <h1 className="page__title">きろく</h1>
         </div>
         <p className="page__note">

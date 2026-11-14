@@ -127,6 +127,82 @@ export function moodOf(fullness: number): Mood {
   return "normal";
 }
 
+const clamp100 = (v: number) => Math.max(0, Math.min(100, Math.round(v)));
+
+/** なつき度 (0-100)。なでた回数とごはんの回数で少しずつ上がり、下がらない */
+export function affectionOf(cat: Pick<CatState, "petCount" | "totalFeeds">): number {
+  return clamp100(cat.petCount + cat.totalFeeds * 2);
+}
+
+/** なでた効果が続く時間 */
+export const PET_BONUS_HOURS = 6;
+
+/**
+ * きげん (0-100)。満腹度を土台に、直近でなでたこと・今日おえたタスク数で上乗せする。
+ *  満腹度×0.6 ＋ なでボーナス(最大20、6時間で0に) ＋ タスクボーナス(1件10、最大20)
+ */
+export function moodScore(fullness: number, lastPetAt: number | undefined, doneToday: number, now: number): number {
+  const hours = lastPetAt === undefined ? Infinity : Math.max(0, now - lastPetAt) / 3_600_000;
+  const petBonus = hours >= PET_BONUS_HOURS ? 0 : 20 * (1 - hours / PET_BONUS_HOURS);
+  const taskBonus = Math.min(20, Math.max(0, doneToday) * 10);
+  return clamp100(fullness * 0.6 + petBonus + taskBonus);
+}
+
+/** ねこ満足度：おなか・きげん・なつき度の平均 */
+export function satisfactionOf(fullness: number, mood: number, affection: number): number {
+  return clamp100((fullness + mood + affection) / 3);
+}
+
+export interface WeekDay {
+  label: string;
+  dateKey: string;
+  done: boolean;
+  isToday: boolean;
+  isFuture: boolean;
+}
+
+const WEEK_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
+
+/** 今週（月〜日）の各日に、完了したタスクがあるか */
+export function weekRecord(completedAts: number[], now: number): WeekDay[] {
+  const days = new Set(completedAts.map((t) => toDateKey(t)));
+  const today = toDateKey(now);
+  const cursor = new Date(now);
+  cursor.setHours(12, 0, 0, 0);
+  cursor.setDate(cursor.getDate() - ((cursor.getDay() + 6) % 7)); // 月曜まで戻る
+  return WEEK_LABELS.map((label) => {
+    const dateKey = toDateKey(cursor);
+    cursor.setDate(cursor.getDate() + 1);
+    return { label, dateKey, done: days.has(dateKey), isToday: dateKey === today, isFuture: dateKey > today };
+  });
+}
+
+export interface CareContext {
+  fullness: number;
+  mood: number;
+  affection: number;
+  fedToday: number;
+  doneToday: number;
+  todoCount: number;
+  streak: number;
+  foodTotal: number;
+}
+
+/** 育成メモ：いまの状態から、ひとことメモを最大3つ作る */
+export function careNotes(c: CareContext): string[] {
+  const notes: string[] = [];
+  if (c.fullness < 30) notes.push(c.foodTotal > 0 ? "おなかがすいています。ごはんをあげましょう" : "おなかがすいています。タスクを終えてごはんを手に入れましょう");
+  else if (c.fedToday >= 2) notes.push("今日はよく食べた");
+  else if (c.fedToday === 1) notes.push("今日はごはんを1回食べた");
+  else if (c.foodTotal > 0) notes.push("ごはんが残っています。あげるとせいちょうします");
+  if (c.streak >= 2) notes.push(`${c.streak}日つづけてタスクを達成中`);
+  if (c.doneToday > 0) notes.push(`今日は${c.doneToday}件おわらせて、ごきげん`);
+  else if (c.todoCount > 0) notes.push("タスクを終えると、きげんが上がります");
+  if (c.mood < 60) notes.push("なでるとごきげんアップ");
+  else if (c.affection < 100) notes.push("なでたりごはんをあげると、なついていきます");
+  return notes.slice(0, 3);
+}
+
 export function emptyInventory(): Inventory {
   return { kibble: 0, fish: 0, feast: 0 };
 }

@@ -7,7 +7,8 @@ const base = process.argv[2] ?? "http://localhost:3100";
 const out = new URL("../docs/screenshots/", import.meta.url).pathname;
 await mkdir(out, { recursive: true });
 
-const now = Date.now();
+// 部屋の見た目が時刻で変わるので、撮影は「今日の10:30」に固定する
+const now = new Date().setHours(10, 30, 0, 0);
 const DAY = 86_400_000;
 const task = (id, title, difficulty, extra = {}) => ({
   id, title, memo: "", difficulty, dueDate: null, status: "todo", rewardClaimed: false,
@@ -60,6 +61,7 @@ async function load(page, data) {
 const browser = await chromium.launch();
 for (const [device, viewport] of [["mobile", { width: 390, height: 844 }], ["tablet", { width: 820, height: 1180 }], ["desktop", { width: 1440, height: 900 }]]) {
   const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, reducedMotion: "no-preference" });
+  await ctx.clock.install({ time: now });
   const page = await ctx.newPage();
   await page.goto(base);
   await page.locator('input[name="catName"]').waitFor();
@@ -69,13 +71,21 @@ for (const [device, viewport] of [["mobile", { width: 390, height: 844 }], ["tab
   await page.goto(base);
   await page.getByTestId("cat-name").waitFor();
   await page.waitForTimeout(500);
-  await page.screenshot({ path: `${out}${device}-home.png`, fullPage: device === "mobile" });
+  await page.screenshot({ path: `${out}${device}-home.png` });
+  if (device === "mobile") {
+    // 下部ナビが固定表示なので、続きはスクロールして撮る
+    await page.locator(".taskcard").scrollIntoViewIfNeeded();
+    await page.evaluate(() => window.scrollBy(0, 300));
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${out}${device}-home-2.png` });
+    await page.evaluate(() => window.scrollTo(0, 0));
+  }
   if (device !== "tablet") {
     await page.getByTestId("feed-fish").click();
     await page.waitForTimeout(900);
     await page.screenshot({ path: `${out}${device}-feeding.png` });
     await page.waitForTimeout(1200);
-    for (const [path, name, sel] of [["/tasks", "tasks", ".tabs"], ["/records", "records", ".album"], ["/settings", "settings", ".card--danger"]]) {
+    for (const [path, name, sel] of [["/tasks", "tasks", ".filters"], ["/records", "records", ".album"], ["/settings", "settings", ".card--danger"]]) {
       await page.goto(base + path);
       await page.locator(sel).waitFor();
       await page.waitForTimeout(400);

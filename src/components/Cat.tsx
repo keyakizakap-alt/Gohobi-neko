@@ -24,7 +24,8 @@ const SHAPE: Record<StageId, { body: number; all: number }> = {
 const C = {
   fur: "#f0a25a",
   furDark: "#d77f38",
-  cream: "#fff3df",
+  cream: "#fffaf2",
+  line: "#7d4a2b",
   pink: "#f7a9a0",
   ink: "#4a3428",
 };
@@ -49,16 +50,17 @@ export function Cat({ stage, face = "normal", animated = true, silhouette = fals
         {/* 胴体 */}
         <g transform={`translate(120 234) scale(${body}) translate(-120 -234)`}>
           <g className="cat__tail">
+            <path d="M160 206 C 214 214, 226 160, 198 136" fill="none" stroke={C.line} strokeWidth="23" strokeLinecap="round" />
             <path d="M160 206 C 214 214, 226 160, 198 136" fill="none" stroke={C.fur} strokeWidth="18" strokeLinecap="round" />
             <path d="M213 163 C 214 150, 208 142, 198 136" fill="none" stroke={C.furDark} strokeWidth="18" strokeLinecap="round" />
           </g>
           <g className="cat__torso">
-            <path d="M120 122 C 78 122, 62 168, 64 198 C 66 226, 88 236, 120 236 C 152 236, 174 226, 176 198 C 178 168, 162 122, 120 122 Z" fill={C.fur} />
+            <path d="M120 122 C 78 122, 62 168, 64 198 C 66 226, 88 236, 120 236 C 152 236, 174 226, 176 198 C 178 168, 162 122, 120 122 Z" fill={C.fur} stroke={C.line} strokeWidth="2.5" />
             <path d="M120 150 C 100 150, 92 178, 93 200 C 94 222, 104 232, 120 232 C 136 232, 146 222, 147 200 C 148 178, 140 150, 120 150 Z" fill={C.cream} />
             <path d="M70 178 q8 2 12 -2 M68 194 q8 3 13 -1 M170 178 q-8 2 -12 -2 M172 194 q-8 3 -13 -1" stroke={C.furDark} strokeWidth="5" strokeLinecap="round" fill="none" />
           </g>
-          <ellipse cx="100" cy="229" rx="17" ry="10" fill={C.cream} />
-          <ellipse cx="140" cy="229" rx="17" ry="10" fill={C.cream} />
+          <ellipse cx="100" cy="229" rx="17" ry="10" fill={C.cream} stroke={C.line} strokeWidth="2.2" />
+          <ellipse cx="140" cy="229" rx="17" ry="10" fill={C.cream} stroke={C.line} strokeWidth="2.2" />
           <path d="M94 232v4M100 233v4M106 232v4M134 232v4M140 233v4M146 232v4" stroke={C.ink} strokeWidth="1.6" strokeLinecap="round" opacity=".35" />
         </g>
 
@@ -75,14 +77,14 @@ export function Cat({ stage, face = "normal", animated = true, silhouette = fals
               />
             )}
             <g className="cat__ear cat__ear--l">
-              <path d="M70 80 L76 30 L116 60 Z" fill={C.fur} stroke={C.fur} strokeWidth="10" strokeLinejoin="round" />
+              <path d="M66 84 Q64 44 74 27 Q80 24 86 29 L120 60 Z" fill={C.fur} stroke={C.line} strokeWidth="2.5" strokeLinejoin="round" />
               <path d="M79 70 L82 43 L103 59 Z" fill={C.pink} stroke={C.pink} strokeWidth="4" strokeLinejoin="round" />
             </g>
             <g className="cat__ear cat__ear--r">
-              <path d="M170 80 L164 30 L124 60 Z" fill={C.fur} stroke={C.fur} strokeWidth="10" strokeLinejoin="round" />
+              <path d="M174 84 Q176 44 166 27 Q160 24 154 29 L120 60 Z" fill={C.fur} stroke={C.line} strokeWidth="2.5" strokeLinejoin="round" />
               <path d="M161 70 L158 43 L137 59 Z" fill={C.pink} stroke={C.pink} strokeWidth="4" strokeLinejoin="round" />
             </g>
-            <ellipse cx="120" cy="100" rx="64" ry="53" fill={C.fur} />
+            <ellipse cx="120" cy="100" rx="64" ry="53" fill={C.fur} stroke={C.line} strokeWidth="2.5" />
             {/* トラ模様 */}
             <path d="M120 50v15M105 53l3 13M135 53l-3 13" stroke={C.furDark} strokeWidth="7" strokeLinecap="round" />
             <path d="M58 96h13M59 109h11M182 96h-13M181 109h-11" stroke={C.furDark} strokeWidth="6" strokeLinecap="round" />

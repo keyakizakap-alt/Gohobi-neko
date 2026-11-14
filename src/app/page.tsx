@@ -3,18 +3,34 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CatRoom, phaseOf, type DayPhase } from "@/components/CatRoom";
-import { FoodIcon, HeartIcon, PawIcon, PlusIcon } from "@/components/Icons";
+import { BowlIcon, CalendarIcon, CatFaceIcon, CheckIcon, ClipboardIcon, FlameIcon, FoodIcon, HeartIcon, NoteIcon, PawIcon, PlusIcon, SunIcon } from "@/components/Icons";
 import { LevelUpDialog } from "@/components/LevelUpDialog";
 import { Meter } from "@/components/Meter";
 import { TaskDialog } from "@/components/TaskDialog";
-import { TaskList, sortTodo } from "@/components/TaskList";
+import { FilterTabs, TaskList, filterTasks, todaysTasks, type TaskFilter } from "@/components/TaskList";
 import { useToast } from "@/components/Toast";
-import { FOODS, FOOD_IDS, currentFullness, levelProgress, moodOf, nextStage, stageForLevel, type Mood } from "@/lib/game";
+import {
+  FOODS,
+  FOOD_IDS,
+  affectionOf,
+  calcStreak,
+  careNotes,
+  currentFullness,
+  levelProgress,
+  moodOf,
+  moodScore,
+  nextStage,
+  satisfactionOf,
+  stageForLevel,
+  toDateKey,
+  weekRecord,
+  type Mood,
+} from "@/lib/game";
 import { toMessage, useStore } from "@/lib/store";
 import type { FeedOutcome, FoodId } from "@/lib/types";
 
 const EAT_MS = 1700;
-const HOME_TASK_LIMIT = 5;
+const HOME_TASK_LIMIT = 6;
 
 function idleLine(mood: Mood, todo: number, foodTotal: number, seed: number): string {
   const pick = (list: string[]) => list[seed % list.length]!;
@@ -43,6 +59,7 @@ export default function HomePage() {
   const [line, setLine] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<FeedOutcome | null>(null);
   const [adding, setAdding] = useState(false);
+  const [filter, setFilter] = useState<TaskFilter>("all");
   const busy = useRef(false);
   const timers = useRef<number[]>([]);
 
@@ -63,8 +80,30 @@ export default function HomePage() {
   const upcoming = nextStage(progress.level);
   const fullness = currentFullness(cat, store.now);
   const mood = moodOf(fullness);
-  const todo = useMemo(() => sortTodo(store.tasks), [store.tasks]);
   const foodTotal = FOOD_IDS.reduce((n, f) => n + inventory[f], 0);
+  const today = toDateKey(store.now);
+
+  const derived = useMemo(() => {
+    const todays = todaysTasks(store.tasks, store.now);
+    const completedAts = store.tasks.filter((t) => t.completedAt !== null).map((t) => t.completedAt!);
+    const doneToday = todays.filter((t) => t.status === "done").length;
+    return {
+      todays,
+      doneToday,
+      todoCount: todays.length - doneToday,
+      streak: calcStreak(completedAts, store.now),
+      week: weekRecord(completedAts, store.now),
+    };
+  }, [store.tasks, store.now]);
+  const { todays, doneToday, todoCount, streak, week } = derived;
+  const todo = { length: todoCount };
+
+  const moodValue = moodScore(fullness, cat.lastPetAt, doneToday, store.now);
+  const affection = affectionOf(cat);
+  const satisfaction = satisfactionOf(fullness, moodValue, affection);
+  const fedToday = store.events.filter((e) => e.type === "feed" && toDateKey(e.at) === today).length;
+  const notes = careNotes({ fullness, mood: moodValue, affection, fedToday, doneToday, todoCount, streak, foodTotal });
+  const shown = filterTasks(todays, filter);
 
   const bubble = line ?? idleLine(mood, todo.length, foodTotal, new Date(store.now).getHours() + todo.length);
   const face = eating ? "eating" : petted ? "happy" : mood;
@@ -111,56 +150,94 @@ export default function HomePage() {
   }, [cat.petCount, later, say, store]);
 
   return (
-    <div className="home">
-      <section className="home__cat" aria-label="ねこの部屋">
-        <header className="cat-head">
-          <div>
-            <p className="cat-head__stage">{stage.name}</p>
-            <h1 className="cat-head__name" data-testid="cat-name">
-              {cat.name}
-            </h1>
-          </div>
-          <p className="cat-head__level" aria-label={`レベル${progress.level}`}>
-            <small>Lv.</small>
-            <span data-testid="cat-level">{progress.level}</span>
-          </p>
-        </header>
+    <div className="dash">
+      <header className="dash__head">
+        <SunIcon />
+        <h1 className="dash__title">今日のダッシュボード</h1>
+      </header>
 
-        <CatRoom
-          name={cat.name}
-          stage={stage.id}
-          face={face}
-          phase={phase}
-          bubble={bubble}
-          eatingFood={eating}
-          heartBurst={hearts}
-          xpPop={xpPop}
-          onPet={onPet}
-        />
+      <ul className="stats dash__tiles">
+        <li className="stat stat--leaf">
+          <span className="stat__icon">
+            <CheckIcon size={22} />
+          </span>
+          <span className="stat__label">完了タスク</span>
+          <span className="stat__value" data-testid="tile-done">
+            {doneToday}
+          </span>
+        </li>
+        <li className="stat stat--sun">
+          <span className="stat__icon">
+            <BowlIcon size={22} />
+          </span>
+          <span className="stat__label">エサ</span>
+          <span className="stat__value" data-testid="tile-food">
+            {foodTotal}
+          </span>
+        </li>
+        <li className="stat stat--accent">
+          <span className="stat__icon">
+            <FlameIcon size={22} />
+          </span>
+          <span className="stat__label">連続達成</span>
+          <span className="stat__value">
+            {streak}
+            <small>日</small>
+          </span>
+        </li>
+        <li className="stat stat--pink">
+          <span className="stat__icon">
+            <HeartIcon size={22} />
+          </span>
+          <span className="stat__label">ねこ満足度</span>
+          <span className="stat__value">
+            {satisfaction}
+            <small>%</small>
+          </span>
+        </li>
+      </ul>
 
-        <div className="card status">
-          <Meter
-            label="せいちょう"
-            tone="xp"
-            ratio={progress.ratio}
-            valueText={`${progress.current} / ${progress.needed} XP`}
-            icon={<PawIcon size={16} />}
-            testId="xp-value"
+      <section className="card roomcard" aria-label="ねこの部屋">
+        <h2 className="card__title roomcard__title">
+          <CatFaceIcon className="card__icon" />
+          ねこの部屋
+        </h2>
+
+        <div className="roomcard__scene">
+          <CatRoom
+            name={cat.name}
+            stage={stage.id}
+            face={face}
+            phase={phase}
+            bubble={bubble}
+            eatingFood={eating}
+            heartBurst={hearts}
+            xpPop={xpPop}
+            onPet={onPet}
+            overlay={
+              <div className="lvcard">
+                <p className="lvcard__name">
+                  <b data-testid="cat-name">{cat.name}</b>
+                  <span className="lvcard__stage">{stage.name}</span>
+                </p>
+                <p className="lvcard__level" aria-label={`レベル${progress.level}`}>
+                  Lv. <span data-testid="cat-level">{progress.level}</span>
+                </p>
+                <div className="lvcard__bar" role="progressbar" aria-label="つぎのレベルまで" aria-valuemin={0} aria-valuemax={progress.needed} aria-valuenow={progress.current}>
+                  <i style={{ width: `${Math.round(progress.ratio * 100)}%` }} />
+                </div>
+                <p className="lvcard__xp">
+                  <span>つぎのレベルまで</span>
+                  <span data-testid="xp-value">
+                    {progress.current} / {progress.needed} XP
+                  </span>
+                </p>
+              </div>
+            }
           />
-          <Meter label="おなか" tone="food" ratio={fullness / 100} valueText={`${fullness}%`} icon={<HeartIcon size={16} />} testId="fullness-value" />
-          <p className="status__next">
-            {upcoming ? (
-              <>
-                Lv.{upcoming.minLevel} で <b>「{upcoming.name}」</b> に成長します
-              </>
-            ) : (
-              <>さいごの姿まで育ちました。これからも いっしょに。</>
-            )}
-          </p>
         </div>
 
-        <div className="card pantry">
-          <h2 className="card__title">ごはんをあげる</h2>
+        <div className="roomcard__pantry">
           <div className="pantry__list">
             {FOOD_IDS.map((id) => {
               const f = FOODS[id];
@@ -175,7 +252,7 @@ export default function HomePage() {
                   aria-label={`${f.name}をあげる（のこり${count}こ）`}
                   data-testid={`feed-${id}`}
                 >
-                  <FoodIcon food={id} size={52} />
+                  <FoodIcon food={id} size={44} />
                   <span className="food__name">{f.name}</span>
                   <span className="food__xp">+{f.xp} XP</span>
                   <span className="food__count" data-testid={`count-${id}`}>
@@ -185,38 +262,112 @@ export default function HomePage() {
               );
             })}
           </div>
-          {foodTotal === 0 && <p className="pantry__empty">ごはんがありません。やることを終えると もらえます。</p>}
+          <p className="pantry__hint">
+            <BowlIcon size={18} />
+            {foodTotal > 0 ? `ごはん：あと${foodTotal}回あげられます` : "タスクを終えると、ごはんがもらえます"}
+          </p>
+        </div>
+
+        <div className="roomcard__meters">
+          <Meter label="おなか" tone="food" ratio={fullness / 100} valueText={`${fullness}%`} icon={<BowlIcon size={18} />} testId="fullness-value" />
+          <Meter label="きげん" tone="mood" ratio={moodValue / 100} valueText={`${moodValue}%`} icon={<CatFaceIcon size={18} />} testId="mood-value" />
+          <Meter label="なつき度" tone="love" ratio={affection / 100} valueText={`${affection}%`} icon={<HeartIcon size={18} />} testId="affection-value" />
+          <p className="roomcard__next">
+            <PawIcon size={15} />
+            {upcoming ? (
+              <span>
+                Lv.{upcoming.minLevel} で <b>「{upcoming.name}」</b> に成長します
+              </span>
+            ) : (
+              <span>さいごの姿まで育ちました</span>
+            )}
+          </p>
         </div>
       </section>
 
-      <section className="home__tasks" aria-label="やること">
-        <div className="section-head">
-          <h2 className="section-head__title">
-            やること <span className="count-pill">{todo.length}</span>
+      <section className="card taskcard" aria-label="今日のタスク">
+        <div className="card__head">
+          <h2 className="card__title">
+            <ClipboardIcon className="card__icon" />
+            今日のタスク
+            <small className="card__sub">
+              （{doneToday}/{todays.length} 完了）
+            </small>
           </h2>
           <button type="button" className="btn btn--primary btn--sm" onClick={() => setAdding(true)}>
             <PlusIcon size={18} />
-            追加
+            <span>
+              <span className="only-wide">タスクを</span>追加
+            </span>
           </button>
         </div>
 
-        {todo.length === 0 ? (
-          <div className="empty">
-            <p className="empty__title">やることは ありません</p>
-            <p>タスクを追加して、{cat.name}の ごはんを集めましょう。</p>
-            <button type="button" className="btn btn--primary" onClick={() => setAdding(true)}>
-              <PlusIcon size={18} />
-              さいしょのタスクを追加
-            </button>
+        <div className="taskcard__bar">
+          <FilterTabs value={filter} onChange={setFilter} />
+          <p className="hint-pill">
+            <PawIcon size={15} />
+            タスク完了でエサを獲得
+          </p>
+        </div>
+
+        {shown.length === 0 ? (
+          <div className="empty empty--inline">
+            {todays.length === 0 ? (
+              <>
+                <p className="empty__title">今日のタスクは ありません</p>
+                <p>タスクを追加して、{cat.name}の ごはんを集めましょう。</p>
+              </>
+            ) : filter === "todo" ? (
+              <p className="empty__title">今日のぶんは ぜんぶ おわりました！</p>
+            ) : (
+              <p className="empty__title">今日は まだ 終えたタスクがありません</p>
+            )}
           </div>
         ) : (
-          <>
-            <TaskList tasks={todo.slice(0, HOME_TASK_LIMIT)} compact />
-            <Link href="/tasks" className="more-link">
-              {todo.length > HOME_TASK_LIMIT ? `ほか ${todo.length - HOME_TASK_LIMIT}件を見る` : "タスクをすべて見る・編集する"}
-            </Link>
-          </>
+          <TaskList tasks={shown.slice(0, HOME_TASK_LIMIT)} variant="home" />
         )}
+        <Link href="/tasks" className="more-link">
+          {shown.length > HOME_TASK_LIMIT ? `ほか ${shown.length - HOME_TASK_LIMIT}件を見る` : "すべて見る"}
+          <span aria-hidden> ›</span>
+        </Link>
+      </section>
+
+      <section className="card weekcard" aria-label="今週の記録">
+        <div className="card__head">
+          <h2 className="card__title">
+            <CalendarIcon size={24} className="card__icon" />
+            今週の記録
+          </h2>
+          {streak > 0 && (
+            <p className="hint-pill hint-pill--hot">
+              <FlameIcon size={16} />
+              {streak}日連続達成中！
+            </p>
+          )}
+        </div>
+        <ol className="week">
+          {week.map((d) => (
+            <li key={d.dateKey} className={`week__day${d.done ? " is-done" : ""}${d.isToday ? " is-today" : ""}${d.isFuture ? " is-future" : ""}`} aria-label={`${d.label}曜日：${d.done ? "達成" : d.isFuture ? "これから" : "未達成"}`}>
+              <span className="week__label">{d.label}</span>
+              <span className="week__mark">{d.done && <CheckIcon size={14} />}</span>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="card notecard" aria-label="育成メモ">
+        <h2 className="card__title">
+          <NoteIcon className="card__icon" />
+          育成メモ
+        </h2>
+        <ul className="notes">
+          {notes.map((n) => (
+            <li key={n}>
+              <PawIcon size={16} />
+              {n}
+            </li>
+          ))}
+        </ul>
       </section>
 
       <TaskDialog open={adding} task={null} onClose={() => setAdding(false)} />

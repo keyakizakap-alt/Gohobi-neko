@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { Cat } from "./Cat";
-import { BookIcon, GearIcon, HomeIcon, ListIcon } from "./Icons";
+import { BookIcon, GearIcon, HomeIcon, ListIcon, PawIcon } from "./Icons";
+import { SleepingCat } from "./SleepingCat";
 import { Onboarding } from "./Onboarding";
 import { useStore } from "@/lib/store";
 
@@ -26,9 +27,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Link href="/" className="nav__brand">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img className="nav__logo" src="/icon.svg" alt="" width={52} height={52} />
-          <span className="nav__name">
-            ごほうび<b>ねこ</b>
-          </span>
+          <span className="nav__name">ごほうびねこ</span>
+          <PawIcon size={18} className="nav__paw" />
         </Link>
         <ul className="nav__list">
           {NAV.map(({ href, label, Icon }) => {
@@ -48,8 +48,15 @@ export function AppShell({ children }: { children: ReactNode }) {
             );
           })}
         </ul>
-        <p className="nav__foot">やることを終えると、ねこのごはんがもらえます。</p>
+        <SleepingCat className="nav__art" />
       </nav>
+
+      <header className="topbar">
+        <Link href="/" className="topbar__brand">
+          <PawIcon size={22} />
+          ごほうびねこ
+        </Link>
+      </header>
 
       <main className="main">
         {status === "loading" && (

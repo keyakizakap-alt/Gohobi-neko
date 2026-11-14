@@ -74,6 +74,45 @@ export const CalendarIcon = ({ size = 14, className }: P) => (
     <path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" />
   </svg>
 );
+export const ClockIcon = ({ size = 14, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="12" cy="13" r="7.500" />
+    <path d="M12 9v4.500l3 1.500M9 3.500h6" />
+  </svg>
+);
+export const SunIcon = ({ size = 28, className }: P) => (
+  <svg width={size} height={size} viewBox="0 0 32 32" className={className} aria-hidden>
+    <g stroke="#f5913f" strokeWidth="2.400" strokeLinecap="round">
+      <path d="M16 3v3.500M5.500 8l2.500 2.500M26.500 8 24 10.500M2.500 18H6M26 18h3.500" />
+    </g>
+    <path d="M7.500 22a8.500 8.500 0 0 1 17 0z" fill="#fbbf4a" />
+    <path d="M3 24.500h26" stroke="#f5913f" strokeWidth="2.400" strokeLinecap="round" />
+  </svg>
+);
+export const BowlIcon = ({ size = 22, className }: P) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" className={className} aria-hidden>
+    <path d="M5 9.500c0-2.500 3-4.500 7-4.500s7 2 7 4.500z" fill="currentColor" opacity=".55" />
+    <path d="M2.500 10h19l-2 7.200a2.500 2.500 0 0 1-2.400 1.800H6.900a2.500 2.500 0 0 1-2.400-1.800z" fill="currentColor" />
+  </svg>
+);
+export const ClipboardIcon = ({ size = 24, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <rect x="5" y="5" width="14" height="16" rx="3" />
+    <path d="M9 5.500V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1.500M9 11h6M9 15h4" />
+  </svg>
+);
+export const NoteIcon = ({ size = 24, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M19 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5" />
+    <path d="m10 14 1-4 8-8 3 3-8 8z" />
+  </svg>
+);
+export const CatFaceIcon = ({ size = 24, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M4.500 11V4.500l4 2.500a8.500 8.500 0 0 1 7 0l4-2.500V11a7.500 7.500 0 1 1-15 0z" />
+    <path d="M9 12.500v.5M15 12.500v.5M10.500 16q1.500 1.200 3 0" />
+  </svg>
+);
 export const FlameIcon = ({ size = 22, className }: P) => (
   <svg {...base(size)} className={className}>
     <path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3.2 2-4.2.4 1.4 1 2 1.8 2.4C10.5 8.5 11 5.5 12 3z" />

@@ -87,7 +87,6 @@ export default function SettingsPage() {
     <div className="page page--narrow">
       <header className="page__head">
         <div>
-          <p className="page__eyebrow">SETTINGS</p>
           <h1 className="page__title">せってい</h1>
         </div>
       </header>

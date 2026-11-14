@@ -3,28 +3,25 @@
 import { useMemo, useState } from "react";
 import { FoodIcon, PlusIcon } from "@/components/Icons";
 import { TaskDialog } from "@/components/TaskDialog";
-import { TaskList, sortDone, sortTodo } from "@/components/TaskList";
+import { FilterTabs, TaskList, filterTasks, type TaskFilter } from "@/components/TaskList";
 import { DIFFICULTIES, DIFFICULTY_IDS, FOODS } from "@/lib/game";
 import { useStore } from "@/lib/store";
 
-type Tab = "todo" | "done";
-
 export default function TasksPage() {
   const { tasks } = useStore();
-  const [tab, setTab] = useState<Tab>("todo");
+  const [filter, setFilter] = useState<TaskFilter>("all");
   const [adding, setAdding] = useState(false);
-  const todo = useMemo(() => sortTodo(tasks), [tasks]);
-  const done = useMemo(() => sortDone(tasks), [tasks]);
-  const list = tab === "todo" ? todo : done;
+  const list = useMemo(() => filterTasks(tasks, filter), [tasks, filter]);
+  const counts = useMemo(() => {
+    const done = tasks.filter((t) => t.status === "done").length;
+    return { all: tasks.length, todo: tasks.length - done, done };
+  }, [tasks]);
 
   return (
     <div className="page">
       <header className="page__head">
-        <div>
-          <p className="page__eyebrow">TASKS</p>
-          <h1 className="page__title">タスク</h1>
-        </div>
-        <button type="button" className="btn btn--primary" onClick={() => setAdding(true)}>
+        <h1 className="page__title">タスク管理</h1>
+        <button type="button" className="btn btn--primary page__add" onClick={() => setAdding(true)}>
           <PlusIcon />
           タスクを追加
         </button>
@@ -38,43 +35,44 @@ export default function TasksPage() {
               <FoodIcon food={d.food} size={30} />
               <span>
                 <b>{d.label}</b>
-                <small>{FOODS[d.food].name} +{FOODS[d.food].xp}XP</small>
+                <small>
+                  {FOODS[d.food].name} +{FOODS[d.food].xp}XP
+                </small>
               </span>
             </li>
           );
         })}
       </ul>
 
-      <div className="tabs" role="tablist" aria-label="表示するタスク">
-        <button type="button" role="tab" aria-selected={tab === "todo"} className={`tabs__tab${tab === "todo" ? " is-active" : ""}`} onClick={() => setTab("todo")}>
-          やること <span className="count-pill">{todo.length}</span>
-        </button>
-        <button type="button" role="tab" aria-selected={tab === "done"} className={`tabs__tab${tab === "done" ? " is-active" : ""}`} onClick={() => setTab("done")}>
-          おわった <span className="count-pill">{done.length}</span>
-        </button>
-      </div>
+      <FilterTabs value={filter} onChange={setFilter} counts={counts} />
 
       {list.length === 0 ? (
         <div className="empty">
-          {tab === "todo" ? (
+          {filter === "done" ? (
             <>
-              <p className="empty__title">やることは ありません</p>
+              <p className="empty__title">まだ 終えたタスクはありません</p>
+              <p>終えたタスクは、ここに並びます。</p>
+            </>
+          ) : (
+            <>
+              <p className="empty__title">{filter === "todo" && tasks.length > 0 ? "ぜんぶ おわりました！" : "タスクは まだありません"}</p>
               <p>タスクを追加すると、終えたときに ごはんがもらえます。</p>
               <button type="button" className="btn btn--primary" onClick={() => setAdding(true)}>
                 <PlusIcon size={18} />
                 タスクを追加
               </button>
             </>
-          ) : (
-            <>
-              <p className="empty__title">まだ 終えたタスクはありません</p>
-              <p>終えたタスクは、ここに並びます。</p>
-            </>
           )}
         </div>
       ) : (
-        <TaskList tasks={list} />
+        <div className="card card--list">
+          <TaskList tasks={list} />
+        </div>
       )}
+
+      <button type="button" className="fab" onClick={() => setAdding(true)} aria-label="タスクを追加">
+        <PlusIcon size={28} />
+      </button>
 
       <TaskDialog open={adding} task={null} onClose={() => setAdding(false)} />
     </div>

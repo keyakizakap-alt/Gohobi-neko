@@ -40,6 +40,12 @@ test("タスク完了→エサ獲得→エサやり→レベルアップまで�
   await page.getByRole("button", { name: "「洗濯物をたたむ」を完了にする" }).click();
   await expect(page.getByRole("status")).toContainText("ごちそう缶 を1つ ゲット");
   await expect(page.getByTestId("count-feast")).toHaveText("1");
+  // 今日おえたタスクは、取り消し線つきで一覧に残る
+  await expect(page.getByTestId("task-item")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "「洗濯物をたたむ」を未完了に戻す" })).toBeVisible();
+  await expect(page.getByTestId("tile-done")).toHaveText("1");
+  await expect(page.getByTestId("tile-food")).toHaveText("2");
+  await page.getByRole("tab", { name: "未完了" }).click();
   await expect(page.getByTestId("task-item")).toHaveCount(0);
 
   await page.getByTestId("feed-feast").click();
@@ -63,7 +69,7 @@ test("タスクの追加・編集・完了・戻す・削除", async ({ page }) 
   await start(page);
   await nav(page, "タスク").click();
   await expect(page).toHaveURL(/\/tasks$/);
-  await expect(page.getByText("やることは ありません")).toBeVisible();
+  await expect(page.getByText("タスクは まだありません")).toBeVisible();
 
   // 空のタイトルは保存できない
   await page.getByRole("button", { name: "タスクを追加" }).first().click();
@@ -84,16 +90,18 @@ test("タスクの追加・編集・完了・戻す・削除", async ({ page }) 
   await expect(page.getByText("スーパーで買い物")).toBeVisible();
   await expect(page.getByText("牛乳とたまご")).toBeVisible();
 
-  // 完了 → 「おわった」へ移動
+  // 完了 → 「すべて」には残り、「未完了」「完了」で絞り込める
   await page.getByRole("button", { name: "「スーパーで買い物」を完了にする" }).click();
+  await expect(page.getByTestId("task-item")).toHaveCount(2);
+  await page.getByRole("tab", { name: /^未完了/ }).click();
   await expect(page.getByTestId("task-item")).toHaveCount(1);
-  await page.getByRole("tab", { name: /おわった/ }).click();
+  await page.getByRole("tab", { name: /^完了/ }).click();
   await expect(page.getByTestId("task-item")).toHaveCount(1);
   await expect(page.getByText("スーパーで買い物")).toBeVisible();
 
   // 戻して再完了しても、ごほうびは増えない
-  await page.getByRole("button", { name: "「スーパーで買い物」を戻す" }).click();
-  await page.getByRole("tab", { name: /やること/ }).click();
+  await page.getByRole("button", { name: "「スーパーで買い物」を未完了に戻す" }).click();
+  await page.getByRole("tab", { name: /^未完了/ }).click();
   await page.getByRole("button", { name: "「スーパーで買い物」を完了にする" }).click();
   await expect(page.getByRole("status")).toContainText("ごほうびは受け取り済み");
 
@@ -104,6 +112,8 @@ test("タスクの追加・編集・完了・戻す・削除", async ({ page }) 
   await page.getByRole("button", { name: "「そうじ」を削除" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "削除する" }).click();
   await expect(page.getByTestId("task-item")).toHaveCount(0);
+  await page.getByRole("tab", { name: /^すべて/ }).click();
+  await expect(page.getByTestId("task-item")).toHaveCount(1);
 
   // ホームに戻ると カリカリは 初期1 + 報酬1 = 2（二重取りなし）
   await nav(page, "ホーム").click();
@@ -113,7 +123,7 @@ test("タスクの追加・編集・完了・戻す・削除", async ({ page }) 
   await page.reload();
   await expect(page.getByTestId("count-kibble")).toHaveText("2");
   await nav(page, "タスク").click();
-  await page.getByRole("tab", { name: /おわった/ }).click();
+  await page.getByRole("tab", { name: /^完了/ }).click();
   await expect(page.getByText("スーパーで買い物")).toBeVisible();
 });
 
@@ -121,7 +131,12 @@ test("きろくに履歴が残り、せっていで名前変更とリセット�
   await start(page);
   await page.getByTestId("feed-kibble").click();
   await expect(page.getByTestId("xp-value")).toHaveText("10 / 20 XP");
+  await expect(page.getByTestId("affection-value")).toHaveText("2%");
+  const moodBefore = parseInt(await page.getByTestId("mood-value").innerText(), 10);
   await page.getByRole("button", { name: "たまをなでる" }).click();
+  // なでると なつき度ときげんが上がる
+  await expect(page.getByTestId("affection-value")).toHaveText("3%");
+  await expect.poll(async () => parseInt(await page.getByTestId("mood-value").innerText(), 10)).toBeGreaterThan(moodBefore);
 
   await nav(page, "きろく").click();
   await expect(page.getByText("たまに カリカリ をあげた")).toBeVisible();
@@ -173,7 +188,7 @@ test("横スクロールが発生しない", async ({ page }) => {
   await addTask(page, "とても長いタスク名".repeat(6).slice(0, 60), "hard");
   for (const path of ["/", "/tasks", "/records", "/settings"]) {
     await page.goto(path);
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.locator("main .card").first()).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow, `${path} が横にはみ出している`).toBeLessThanOrEqual(0);
   }

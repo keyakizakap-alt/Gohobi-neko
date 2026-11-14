@@ -192,8 +192,8 @@ async function mutateState(db: Db, fn: (s: GameState) => GameState, now = Date.n
   return next;
 }
 
-export function petCat(db: Db): Promise<GameState> {
-  return mutateState(db, (s) => ({ ...s, cat: { ...s.cat, petCount: s.cat.petCount + 1 } }));
+export function petCat(db: Db, now = Date.now()): Promise<GameState> {
+  return mutateState(db, (s) => ({ ...s, cat: { ...s.cat, petCount: s.cat.petCount + 1, lastPetAt: now } }), now);
 }
 
 export function renameCat(db: Db, name: string): Promise<GameState> {
@@ -255,6 +255,7 @@ export function parseExportData(raw: unknown): ExportData {
       petCount: isCount(c.petCount) ? c.petCount : 0,
       totalFeeds: isCount(c.totalFeeds) ? c.totalFeeds : 0,
       bornAt: c.bornAt,
+      ...(isNum(c.lastPetAt) ? { lastPetAt: c.lastPetAt } : {}),
     },
     inventory,
   };

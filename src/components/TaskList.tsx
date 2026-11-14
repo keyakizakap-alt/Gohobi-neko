@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { CalendarIcon, CheckIcon, FoodIcon, PencilIcon, TrashIcon, UndoIcon } from "./Icons";
+import { CheckIcon, ClockIcon, FoodIcon, PencilIcon, TrashIcon } from "./Icons";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { TaskDialog } from "./TaskDialog";
 import { useToast } from "./Toast";
@@ -40,13 +40,48 @@ export function sortDone(tasks: Task[]): Task[] {
   return tasks.filter((t) => t.status === "done").sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
 }
 
-interface Props {
-  tasks: Task[];
-  /** ホーム用の簡易表示（編集・削除ボタンを出さない） */
-  compact?: boolean;
+export type TaskFilter = "all" | "todo" | "done";
+
+const FILTERS: { id: TaskFilter; label: string }[] = [
+  { id: "all", label: "すべて" },
+  { id: "todo", label: "未完了" },
+  { id: "done", label: "完了" },
+];
+
+/** 未完了を先に、完了を後ろに並べたうえで絞り込む */
+export function filterTasks(tasks: Task[], filter: TaskFilter): Task[] {
+  if (filter === "todo") return sortTodo(tasks);
+  if (filter === "done") return sortDone(tasks);
+  return [...sortTodo(tasks), ...sortDone(tasks)];
 }
 
-export function TaskList({ tasks, compact = false }: Props) {
+/** 「今日のタスク」＝未完了のすべて＋今日おえたもの */
+export function todaysTasks(tasks: Task[], now: number): Task[] {
+  const today = toDateKey(now);
+  return tasks.filter((t) => t.status === "todo" || (t.completedAt !== null && toDateKey(t.completedAt) === today));
+}
+
+export function FilterTabs({ value, onChange, counts }: { value: TaskFilter; onChange(v: TaskFilter): void; counts?: Record<TaskFilter, number> }) {
+  return (
+    <div className="filters" role="tablist" aria-label="表示するタスク">
+      {FILTERS.map((f) => (
+        <button key={f.id} type="button" role="tab" aria-selected={value === f.id} className={`filters__tab${value === f.id ? " is-active" : ""}`} onClick={() => onChange(f.id)}>
+          {f.label}
+          {counts && <span className="filters__count">{counts[f.id]}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+interface Props {
+  tasks: Task[];
+  /** home はメモを省き、スマホ幅では編集・削除ボタンを隠す */
+  variant?: "home" | "full";
+}
+
+export function TaskList({ tasks, variant = "full" }: Props) {
+  const compact = variant === "home";
   const store = useStore();
   const toast = useToast();
   const [editing, setEditing] = useState<Task | null>(null);
@@ -86,7 +121,7 @@ export function TaskList({ tasks, compact = false }: Props) {
     async (task: Task) => {
       try {
         await store.reopenTask(task.id);
-        toast.show("やることに戻しました");
+        toast.show("未完了に戻しました");
       } catch (e) {
         toast.show(toMessage(e), "error");
       }
@@ -108,7 +143,7 @@ export function TaskList({ tasks, compact = false }: Props) {
 
   return (
     <>
-      <ul className="tasks">
+      <ul className={`tasks tasks--${variant}`}>
         {tasks.map((task) => {
           const d = DIFFICULTIES[task.difficulty];
           const done = task.status === "done";
@@ -116,46 +151,40 @@ export function TaskList({ tasks, compact = false }: Props) {
           return (
             <li key={task.id} className={`task${done ? " task--done" : ""}${justDone === task.id ? " task--pop" : ""}`} data-testid="task-item">
               {done ? (
-                <button type="button" className="task__check task__check--done" onClick={() => reopen(task)} aria-label={`「${task.title}」をやることに戻す`}>
-                  <CheckIcon />
+                <button type="button" className="task__check task__check--done" onClick={() => reopen(task)} aria-label={`「${task.title}」を未完了に戻す`}>
+                  <CheckIcon size={16} />
                 </button>
               ) : (
                 <button type="button" className="task__check" onClick={() => complete(task)} aria-label={`「${task.title}」を完了にする`}>
-                  <CheckIcon />
+                  <CheckIcon size={16} />
                 </button>
               )}
               <div className="task__main">
                 <p className="task__title">{task.title}</p>
                 {task.memo && !compact && <p className="task__memo">{task.memo}</p>}
                 <div className="task__meta">
-                  <span className={`chip chip--${task.difficulty}`}>
-                    <FoodIcon food={d.food} size={18} />
-                    {d.label}
-                  </span>
+                  <span className={`chip chip--${task.difficulty}`}>{d.label}</span>
                   {due && (
-                    <span className={`chip chip--due${due.overdue ? " chip--overdue" : ""}`}>
-                      <CalendarIcon />
+                    <span className={`task__due${due.overdue ? " is-overdue" : ""}`}>
+                      <ClockIcon />
                       {due.text}
                     </span>
                   )}
-                  {done && task.completedAt && <span className="chip chip--plain">{toDateKey(task.completedAt).slice(5).replace("-", "/")} 完了</span>}
+                  {done && task.completedAt && <span className="task__due">{toDateKey(task.completedAt).slice(5).replace("-", "/")} 完了</span>}
                 </div>
               </div>
-              {!compact && (
-                <div className="task__actions">
-                  {done && (
-                    <button type="button" className="icon-btn" onClick={() => reopen(task)} aria-label={`「${task.title}」を戻す`} title="やることに戻す">
-                      <UndoIcon />
-                    </button>
-                  )}
-                  <button type="button" className="icon-btn" onClick={() => setEditing(task)} aria-label={`「${task.title}」を編集`} title="編集">
-                    <PencilIcon />
-                  </button>
-                  <button type="button" className="icon-btn icon-btn--danger" onClick={() => setDeleting(task)} aria-label={`「${task.title}」を削除`} title="削除">
-                    <TrashIcon />
-                  </button>
-                </div>
-              )}
+              <span className={`task__reward${done ? " is-got" : ""}`} title={`${done ? "もらった" : "終えるともらえる"}ごほうび：${FOODS[d.food].name}`}>
+                <FoodIcon food={d.food} size={20} />
+                +1
+              </span>
+              <div className="task__actions">
+                <button type="button" className="icon-btn" onClick={() => setEditing(task)} aria-label={`「${task.title}」を編集`} title="編集">
+                  <PencilIcon size={17} />
+                </button>
+                <button type="button" className="icon-btn icon-btn--danger" onClick={() => setDeleting(task)} aria-label={`「${task.title}」を削除`} title="削除">
+                  <TrashIcon size={17} />
+                </button>
+              </div>
             </li>
           );
         })}

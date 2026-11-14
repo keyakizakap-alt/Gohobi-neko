@@ -36,6 +36,8 @@ export interface CatState {
   fullness: number;
   fullnessAt: number;
   petCount: number;
+  /** 最後になでた時刻（きげんの計算に使う）。未設定の古いデータもある */
+  lastPetAt?: number;
   totalFeeds: number;
   bornAt: number;
 }

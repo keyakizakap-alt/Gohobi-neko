@@ -16,8 +16,8 @@ export function phaseOf(date: Date): DayPhase {
 }
 
 const SKY: Record<DayPhase, [string, string]> = {
-  morning: ["#ffe2bf", "#bfe3ee"],
-  day: ["#a9dcee", "#e4f5f4"],
+  morning: ["#ffe6c7", "#cfeaf2"],
+  day: ["#b5e2f2", "#eaf8f6"],
   evening: ["#f6a36b", "#fbd9a5"],
   night: ["#2f3f6b", "#5a6c9c"],
 };
@@ -32,11 +32,13 @@ interface Props {
   /** 値が変わるたびにハートを飛ばす */
   heartBurst: number;
   xpPop: { key: number; amount: number } | null;
+  /** 部屋の左上に重ねる表示（レベルカードなど） */
+  overlay?: ReactNode;
   onPet(): void;
 }
 
 /** ねこの部屋。背景は1枚のSVG、ねこ・おさら・ふきだしは重ねて配置する */
-export function CatRoom({ name, stage, face, phase, bubble, eatingFood, heartBurst, xpPop, onPet }: Props) {
+export function CatRoom({ name, stage, face, phase, bubble, eatingFood, heartBurst, xpPop, overlay, onPet }: Props) {
   const [skyTop, skyBottom] = SKY[phase];
   const night = phase === "night";
   return (
@@ -47,86 +49,109 @@ export function CatRoom({ name, stage, face, phase, bubble, eatingFood, heartBur
             <stop offset="0" stopColor={skyTop} />
             <stop offset="1" stopColor={skyBottom} />
           </linearGradient>
-          <pattern id="wall" width="28" height="28" patternUnits="userSpaceOnUse">
-            <rect width="28" height="28" fill={night ? "#e9d6b8" : "#f8e6c6"} />
-            <circle cx="7" cy="7" r="1.600" fill="#e8744f" opacity=".28" />
-            <circle cx="21" cy="21" r="1.600" fill="#6f9e77" opacity=".3" />
-          </pattern>
-          <pattern id="floor" width="80" height="24" patternUnits="userSpaceOnUse">
-            <rect width="80" height="24" fill="#dba76a" />
-            <path d="M0 0h80M0 12h80M22 0v12M62 12v12" stroke="#b9824a" strokeWidth="1.400" opacity=".55" />
-          </pattern>
+          <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={night ? "#efdcc6" : "#fff3e2"} />
+            <stop offset="1" stopColor={night ? "#e2c9ad" : "#fbe2c8"} />
+          </linearGradient>
+          <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#f3d3ab" />
+            <stop offset="1" stopColor="#ecc394" />
+          </linearGradient>
+          <linearGradient id="ray" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#fff" stopOpacity=".5" />
+            <stop offset="1" stopColor="#fff" stopOpacity="0" />
+          </linearGradient>
           <clipPath id="pane">
-            <rect x="34" y="34" width="112" height="96" rx="8" />
+            <rect x="64" y="20" width="150" height="150" rx="6" />
           </clipPath>
         </defs>
 
-        <rect width="400" height="232" fill="url(#wall)" />
-        <rect y="226" width="400" height="94" fill="url(#floor)" />
-        <rect y="222" width="400" height="9" fill="#fff6e4" stroke="#4a3428" strokeWidth="2" />
+        <rect width="400" height="236" fill="url(#wall)" />
+        <rect y="232" width="400" height="88" fill="url(#floor)" />
+        <path d="M0 256h400M0 284h400M70 232v24M190 232v24M310 232v24M130 256v28M250 256v28M40 284v36M200 284v36M340 284v36" stroke="#e0b480" strokeWidth="1.200" opacity=".6" />
+        <rect y="226" width="400" height="8" fill="#fffaf2" />
+        <rect y="234" width="400" height="2" fill="#e6c39a" opacity=".6" />
 
-        {/* 窓 */}
+        {/* 大きな窓 */}
         <g>
-          <rect x="26" y="26" width="128" height="112" rx="12" fill="#fff6e4" stroke="#4a3428" strokeWidth="2.500" />
-          <rect x="34" y="34" width="112" height="96" rx="8" fill="url(#sky)" />
+          <rect x="56" y="12" width="166" height="166" rx="10" fill="#fffaf2" stroke="#e8cfae" strokeWidth="2" />
+          <rect x="64" y="20" width="150" height="150" rx="6" fill="url(#sky)" />
           <g clipPath="url(#pane)">
             {night ? (
               <>
-                <circle cx="112" cy="62" r="13" fill="#fbe9a8" />
-                <circle cx="118" cy="57" r="11" fill={skyTop} />
+                <circle cx="176" cy="58" r="15" fill="#fbe9a8" />
+                <circle cx="183" cy="52" r="13" fill={skyTop} />
                 <g fill="#fff6d8">
-                  <circle cx="56" cy="52" r="1.600" />
-                  <circle cx="78" cy="76" r="1.200" />
-                  <circle cx="94" cy="46" r="1.400" />
-                  <circle cx="132" cy="92" r="1.300" />
-                  <circle cx="50" cy="96" r="1.200" />
+                  <circle cx="90" cy="46" r="1.600" />
+                  <circle cx="122" cy="78" r="1.200" />
+                  <circle cx="146" cy="40" r="1.400" />
+                  <circle cx="196" cy="104" r="1.300" />
+                  <circle cx="84" cy="106" r="1.200" />
                 </g>
               </>
             ) : (
               <>
-                <circle cx={phase === "evening" ? 118 : 110} cy={phase === "day" ? 58 : 84} r="14" fill={phase === "evening" ? "#ffd27a" : "#fff0b0"} />
-                <g fill="#fff" opacity=".9" className="room__cloud">
-                  <ellipse cx="62" cy="66" rx="16" ry="7" />
-                  <ellipse cx="72" cy="60" rx="10" ry="7" />
+                <circle cx={phase === "evening" ? 184 : 172} cy={phase === "day" ? 54 : 96} r="17" fill={phase === "evening" ? "#ffd27a" : "#fff3bd"} />
+                <g fill="#fff" opacity=".92" className="room__cloud">
+                  <ellipse cx="98" cy="66" rx="20" ry="8" />
+                  <ellipse cx="110" cy="58" rx="12" ry="8" />
                 </g>
               </>
             )}
-            <path d="M34 130 Q60 100 86 118 T146 104 V130Z" fill={night ? "#3f5a56" : "#8fbf8a"} />
+            <path d="M64 170 Q98 124 136 150 T214 132 V170Z" fill={night ? "#4a6660" : "#a8d3a0"} />
+            <path d="M64 170 Q110 146 150 160 T214 152 V170Z" fill={night ? "#3f5a56" : "#8fc38a"} />
           </g>
-          <path d="M90 34v96M34 82h112" stroke="#fff6e4" strokeWidth="6" />
-          <path d="M90 34v96M34 82h112" stroke="#4a3428" strokeWidth="1.200" opacity=".25" />
-          <rect x="20" y="134" width="140" height="10" rx="5" fill="#fff6e4" stroke="#4a3428" strokeWidth="2.500" />
+          <path d="M139 20v150M64 95h150" stroke="#fffaf2" strokeWidth="7" />
+          <rect x="48" y="174" width="182" height="11" rx="5.500" fill="#fffaf2" stroke="#e8cfae" strokeWidth="2" />
+          {!night && <path d="M64 170 L214 170 L300 320 L20 320Z" fill="url(#ray)" opacity=".5" />}
         </g>
 
-        {/* たな と 写真 */}
+        {/* つりさげた植物 */}
+        <g className="room__plant">
+          <path d="M318 0v30M338 0v30" stroke="#d9bf9c" strokeWidth="1.500" />
+          <g fill="#8fc38a">
+            <ellipse cx="306" cy="52" rx="9" ry="6" transform="rotate(-30 306 52)" />
+            <ellipse cx="300" cy="68" rx="8" ry="5.500" transform="rotate(-50 300 68)" />
+            <ellipse cx="350" cy="52" rx="9" ry="6" transform="rotate(30 350 52)" />
+            <ellipse cx="357" cy="70" rx="8" ry="5.500" transform="rotate(55 357 70)" />
+            <ellipse cx="352" cy="88" rx="7" ry="5" transform="rotate(40 352 88)" />
+          </g>
+          <g fill="#6fae74">
+            <ellipse cx="316" cy="28" rx="10" ry="7" transform="rotate(-20 316 28)" />
+            <ellipse cx="340" cy="28" rx="10" ry="7" transform="rotate(20 340 28)" />
+            <ellipse cx="328" cy="22" rx="9" ry="8" />
+          </g>
+          <path d="M312 30h32l-4 20h-24z" fill="#fffaf2" stroke="#e8cfae" strokeWidth="1.800" strokeLinejoin="round" />
+        </g>
+
+        {/* キャットタワー */}
+        <g stroke="#d3b48c" strokeWidth="1.800" strokeLinejoin="round">
+          <rect x="334" y="112" width="14" height="60" fill="#e3c9a4" />
+          <path d="M334 124h14M334 136h14M334 148h14M334 160h14" strokeWidth="1" opacity=".7" />
+          <rect x="306" y="102" width="74" height="13" rx="6.500" fill="#f6e7d0" />
+          <rect x="302" y="170" width="78" height="62" rx="10" fill="#ecd7b8" />
+          <path d="M322 232v-24a18 18 0 0 1 36 0v24z" fill="#b48f68" stroke="none" />
+          <rect x="290" y="230" width="100" height="11" rx="5.500" fill="#f6e7d0" />
+        </g>
+
+        {/* クッション */}
         <g>
-          <rect x="252" y="96" width="120" height="8" rx="4" fill="#c98a4e" stroke="#4a3428" strokeWidth="2" />
-          <rect x="266" y="52" width="38" height="44" rx="5" fill="#fff6e4" stroke="#4a3428" strokeWidth="2" />
-          <path d="M276 82l3-10 6 6 6-10 4 14z" fill="#e8744f" />
-          <circle cx="279" cy="64" r="3" fill="#f2b544" />
-          <g>
-            <rect x="322" y="70" width="12" height="26" rx="2" fill="#6f9e77" stroke="#4a3428" strokeWidth="1.800" />
-            <rect x="334" y="64" width="11" height="32" rx="2" fill="#e8744f" stroke="#4a3428" strokeWidth="1.800" />
-            <rect x="345" y="74" width="13" height="22" rx="2" fill="#f2b544" stroke="#4a3428" strokeWidth="1.800" />
-          </g>
+          <ellipse cx="34" cy="246" rx="52" ry="15" fill="#e9bfc0" />
+          <ellipse cx="34" cy="239" rx="52" ry="15" fill="#f6d5d3" />
+          <path d="M10 236q24 8 48 0" fill="none" stroke="#e9bfc0" strokeWidth="1.500" strokeLinecap="round" />
         </g>
 
-        {/* 観葉植物 */}
+        {/* ラグ と ボール */}
+        <ellipse cx="200" cy="288" rx="150" ry="25" fill="#fffaf2" stroke="#f0dcc4" strokeWidth="2" />
+        <ellipse cx="200" cy="288" rx="130" ry="18" fill="none" stroke="#f6e3cd" strokeWidth="3" strokeDasharray="1 8" strokeLinecap="round" />
         <g>
-          <g stroke="#3f6b4a" strokeWidth="2" fill="#7fb37f" className="room__plant">
-            <path d="M352 232 C 340 200, 330 186, 318 176 C 334 176, 350 196, 354 232Z" />
-            <path d="M354 232 C 352 196, 356 172, 366 156 C 374 176, 368 206, 358 232Z" />
-            <path d="M358 232 C 366 204, 378 192, 392 190 C 386 206, 374 222, 360 234Z" />
-          </g>
-          <path d="M336 232h44l-5 36h-34z" fill="#e8744f" stroke="#4a3428" strokeWidth="2.200" strokeLinejoin="round" />
-          <path d="M333 230h50v8h-50z" fill="#f08a67" stroke="#4a3428" strokeWidth="2.200" strokeLinejoin="round" />
+          <ellipse cx="318" cy="299" rx="12" ry="3" fill="#7d4a2b" opacity=".12" />
+          <circle cx="318" cy="287" r="12" fill="#f5913f" />
+          <path d="M308 281q10 6 20 0M307 290q11 6 22 0" fill="none" stroke="#fff3e2" strokeWidth="2.400" strokeLinecap="round" />
         </g>
-
-        {/* ラグ */}
-        <ellipse cx="200" cy="286" rx="150" ry="26" fill="#f4c9a8" stroke="#4a3428" strokeWidth="2.200" />
-        <ellipse cx="200" cy="286" rx="128" ry="19" fill="none" stroke="#fff6e4" strokeWidth="3" strokeDasharray="2 9" strokeLinecap="round" />
       </svg>
 
+      {overlay && <div className="room__overlay">{overlay}</div>}
       <div className="room__bubble" key={typeof bubble === "string" ? bubble : undefined}>
         {bubble}
       </div>
@@ -146,10 +171,16 @@ export function CatRoom({ name, stage, face, phase, bubble, eatingFood, heartBur
       <div className={`room__bowl${eatingFood ? " room__bowl--full" : ""}`} aria-hidden>
         {eatingFood && <FoodIcon food={eatingFood} size={46} className="room__food" />}
         <svg viewBox="0 0 90 44" className="room__bowl-svg">
-          <ellipse cx="45" cy="38" rx="40" ry="5" fill="#4a3428" opacity=".14" />
-          <path d="M8 12h74l-9 24a6 6 0 0 1-6 4H23a6 6 0 0 1-6-4z" fill="#7fb7c9" stroke="#4a3428" strokeWidth="2.400" strokeLinejoin="round" />
-          <ellipse cx="45" cy="12" rx="37" ry="7" fill="#b9dde8" stroke="#4a3428" strokeWidth="2.400" />
-          <path d="M38 26c2-3 5-3 7 0 2-3 5-3 7 0 0 4-7 7-7 7s-7-3-7-7z" fill="#fff6e4" opacity=".9" />
+          <ellipse cx="45" cy="39" rx="38" ry="4.500" fill="#7d4a2b" opacity=".12" />
+          <path d="M8 12h74l-8 23a7 7 0 0 1-6.600 5H22.600a7 7 0 0 1-6.600-5z" fill="#fffaf2" stroke="#e3c8a6" strokeWidth="2" strokeLinejoin="round" />
+          <ellipse cx="45" cy="12" rx="37" ry="7" fill="#f6e3cd" stroke="#e3c8a6" strokeWidth="2" />
+          <g fill="#f5913f">
+            <ellipse cx="45" cy="30" rx="4.500" ry="3.600" />
+            <circle cx="38.500" cy="25" r="1.800" />
+            <circle cx="43" cy="22.500" r="1.800" />
+            <circle cx="47.500" cy="22.500" r="1.800" />
+            <circle cx="52" cy="25" r="1.800" />
+          </g>
         </svg>
       </div>
     </div>
