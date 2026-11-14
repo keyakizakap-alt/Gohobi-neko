@@ -13,6 +13,9 @@ import {
   listTasks,
   loadState,
   parseExportData,
+  sanitizeEvent,
+  sanitizeState,
+  sanitizeTask,
   renameCat,
   reopenTask,
   resetAll,
@@ -29,10 +32,11 @@ beforeEach(async () => {
 
 describe("repository", () => {
   it("初回は初期状態を作り、2回目以降は同じものを返す", async () => {
-    const a = await loadState(db, 1000);
-    const b = await loadState(db, 2000);
+    const t0 = Date.UTC(2026, 0, 1);
+    const a = await loadState(db, t0);
+    const b = await loadState(db, t0 + 5000);
     expect(a.inventory.kibble).toBe(1);
-    expect(b.cat.bornAt).toBe(1000);
+    expect(b.cat.bornAt).toBe(t0);
   });
 
   it("タスクの追加・編集・削除", async () => {
@@ -164,5 +168,72 @@ describe("細工したバックアップを拒否する", () => {
     const parsed = parseExportData(JSON.parse(text));
     expect(Object.keys(parsed.state.cat).sort()).toEqual(["bornAt", "fullness", "fullnessAt", "name", "petCount", "totalFeeds", "xp"]);
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+  });
+});
+
+describe("壊れた保存データを読んでも落ちない", () => {
+  const put = (store: "state" | "tasks" | "events", value: unknown) => db.put(store, value as never);
+
+  it("状態が壊れていても、正しい形に補正して返す", async () => {
+    await put("state", { id: "main", onboarded: true, cat: { name: "x", xp: "abc", fullness: "z", fullnessAt: "q", petCount: null, totalFeeds: {}, bornAt: null }, inventory: { kibble: "many", fish: -3, feast: Number.NaN } });
+    const s = await loadState(db);
+    expect(s.cat).toMatchObject({ name: "x", xp: 0, fullness: 50, petCount: 0, totalFeeds: 0 });
+    expect(s.inventory).toEqual({ kibble: 0, fish: 0, feast: 0 });
+    expect(Number.isFinite(s.cat.bornAt)).toBe(true);
+    // 補正した内容で書き直されている
+    expect((await db.get("state", "main"))?.cat.xp).toBe(0);
+  });
+
+  it("cat や inventory が無い・null でも初期状態になる", () => {
+    for (const raw of [undefined, null, [], "x", { id: "main" }, { id: "main", cat: null, inventory: null, onboarded: true }]) {
+      const s = sanitizeState(raw, 1_800_000_000_000);
+      expect(s.cat.name).toBe("ねこ");
+      expect(s.onboarded).toBe(false);
+      expect(s.inventory.kibble).toBe(1);
+    }
+    expect(sanitizeState({ cat: { xp: 1e308 } }).cat.xp).toBe(999_900_000); // 上限（Lv.10000 相当）
+  });
+
+  it("読めないタスクは外し、読める部分は補正する", async () => {
+    await put("tasks", { id: "bad1", title: { a: 1 }, difficulty: "ultra" });
+    await put("tasks", { id: "bad2" });
+    await put("tasks", { id: "ok1", title: "  そうじ\u202E  ", memo: 5, difficulty: "ultra", dueDate: "not-a-date", status: "weird", createdAt: "x", completedAt: "y" });
+    const list = await listTasks(db);
+    expect(list.map((t) => t.id)).toEqual(["ok1"]);
+    expect(list[0]).toMatchObject({ title: "そうじ", memo: "", difficulty: "normal", dueDate: null, status: "todo", completedAt: null });
+    // 壊れたタスクも完了でき、報酬が入る
+    const r = await completeTask(db, "ok1");
+    expect(r.granted).toBe("fish");
+    await expect(completeTask(db, "bad2")).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(sanitizeTask(null)).toBeNull();
+  });
+
+  it("読めない履歴は外す", async () => {
+    await put("events", { type: "???", at: "never" });
+    await put("events", { type: "evolve", at: 1, stage: "dragon", level: "x" });
+    await put("events", { type: "feed", at: 1_800_000_000_000, foodId: "gold" });
+    const list = await listEvents(db);
+    expect(list.map((e) => e.type).sort()).toEqual(["evolve", "feed"]);
+    expect(list.find((e) => e.type === "evolve")).not.toHaveProperty("stage");
+    expect(list.find((e) => e.type === "feed")).not.toHaveProperty("foodId");
+    expect(sanitizeEvent({ type: "feed" })).toBeNull();
+  });
+
+  it("壊れたデータを含んでいても、バックアップは読み込める形で出力される", async () => {
+    await put("state", { id: "main", cat: null });
+    await put("tasks", { id: "bad2" });
+    await put("events", { type: "???", at: "never" });
+    const dump = JSON.parse(JSON.stringify(await exportAll(db)));
+    expect(() => parseExportData(dump)).not.toThrow();
+  });
+});
+
+describe("不可視文字の除去", () => {
+  it("文字の並びを変える制御文字や改行を、タスク名・名前から取り除く", async () => {
+    const t = await createTask(db, { ...input, title: "請求書\u202Egnp.exe\u202C\nを送る", memo: "1行目\r\n2行目\u0007" });
+    expect(t.title).toBe("請求書gnp.exe を送る");
+    expect(t.memo).toBe("1行目\n2行目");
+    expect((await renameCat(db, "た\u200Fま\t")).cat.name).toBe("たま");
+    await expect(createTask(db, { ...input, title: "\u202E\u200F" })).rejects.toBeInstanceOf(GameError);
   });
 });

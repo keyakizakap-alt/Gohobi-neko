@@ -26,6 +26,8 @@ const csp = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // 画像の変換機能は使っていない（<img> で直接表示）ので、変換をさせない
+  images: { unoptimized: true },
   async headers() {
     return [
       {

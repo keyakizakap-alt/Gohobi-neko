@@ -6,6 +6,10 @@ import type { Db } from "./db";
 import {
   GameError,
   MAX_XP,
+  MEMO_MAX,
+  NAME_MAX,
+  TITLE_MAX,
+  stripControl,
   SCHEMA_VERSION,
   DIFFICULTIES,
   FOOD_IDS,
@@ -36,24 +40,30 @@ function newId(): string {
 /** 状態を取得。初回は初期状態を作成して保存する */
 export async function loadState(db: Db, now = Date.now()): Promise<GameState> {
   const tx = db.transaction("state", "readwrite");
-  let state = await tx.store.get("main");
-  if (!state) {
-    state = createInitialState(now);
-    await tx.store.put(state);
-  }
+  const raw = await tx.store.get("main");
+  const state = sanitizeState(raw, now);
+  // 無い・壊れているときは、補正した内容で書き直しておく
+  if (JSON.stringify(raw) !== JSON.stringify(state)) await tx.store.put(state);
   await tx.done;
   return state;
 }
 
 export async function listTasks(db: Db): Promise<Task[]> {
-  return db.getAll("tasks");
+  const now = Date.now();
+  const out: Task[] = [];
+  for (const raw of await db.getAll("tasks")) {
+    const t = sanitizeTask(raw, now);
+    if (t) out.push(t);
+  }
+  return out;
 }
 
 export async function listEvents(db: Db, limit = 60): Promise<GameEvent[]> {
   const out: GameEvent[] = [];
   let cursor = await db.transaction("events").store.openCursor(null, "prev");
   while (cursor && out.length < limit) {
-    out.push(cursor.value);
+    const ev = sanitizeEvent(cursor.value);
+    if (ev) out.push(ev);
     cursor = await cursor.continue();
   }
   return out;
@@ -81,7 +91,7 @@ export async function createTask(db: Db, input: TaskInput, now = Date.now()): Pr
 export async function updateTask(db: Db, id: string, input: TaskInput, now = Date.now()): Promise<Task> {
   const v = normalizeTaskInput(input);
   const tx = db.transaction("tasks", "readwrite");
-  const cur = await tx.store.get(id);
+  const cur = sanitizeTask(await tx.store.get(id), now);
   if (!cur) {
     tx.abort();
     await tx.done.catch(() => undefined);
@@ -111,13 +121,13 @@ export async function completeTask(db: Db, id: string, now = Date.now()): Promis
   const tx = db.transaction(["tasks", "state", "events"], "readwrite");
   const tasks = tx.objectStore("tasks");
   const stateStore = tx.objectStore("state");
-  const cur = await tasks.get(id);
+  const cur = sanitizeTask(await tasks.get(id), now);
   if (!cur) {
     tx.abort();
     await tx.done.catch(() => undefined);
     throw new GameError("NOT_FOUND", "タスクが見つかりません");
   }
-  let state = (await stateStore.get("main")) ?? createInitialState(now);
+  let state = sanitizeState(await stateStore.get("main"), now);
   if (cur.status === "done") {
     await tx.done;
     return { task: cur, state, granted: null, event: null };
@@ -139,7 +149,7 @@ export async function completeTask(db: Db, id: string, now = Date.now()): Promis
 
 export async function reopenTask(db: Db, id: string, now = Date.now()): Promise<Task> {
   const tx = db.transaction("tasks", "readwrite");
-  const cur = await tx.store.get(id);
+  const cur = sanitizeTask(await tx.store.get(id), now);
   if (!cur) {
     tx.abort();
     await tx.done.catch(() => undefined);
@@ -161,7 +171,7 @@ export async function feedCat(db: Db, foodId: FoodId, now = Date.now()): Promise
   const tx = db.transaction(["state", "events"], "readwrite");
   const stateStore = tx.objectStore("state");
   const eventStore = tx.objectStore("events");
-  const cur = (await stateStore.get("main")) ?? createInitialState(now);
+  const cur = sanitizeState(await stateStore.get("main"), now);
   let result: ReturnType<typeof applyFeed>;
   try {
     result = applyFeed(cur, foodId, now);
@@ -186,7 +196,7 @@ export async function feedCat(db: Db, foodId: FoodId, now = Date.now()): Promise
 
 async function mutateState(db: Db, fn: (s: GameState) => GameState, now = Date.now()): Promise<GameState> {
   const tx = db.transaction("state", "readwrite");
-  const cur = (await tx.store.get("main")) ?? createInitialState(now);
+  const cur = sanitizeState(await tx.store.get("main"), now);
   const next = fn(cur);
   await tx.store.put(next);
   await tx.done;
@@ -214,9 +224,9 @@ export async function exportAll(db: Db, now = Date.now()): Promise<ExportData> {
     app: "gohobi-neko",
     schemaVersion: SCHEMA_VERSION,
     exportedAt: now,
-    state: state ?? createInitialState(now),
-    tasks,
-    events,
+    state: sanitizeState(state, now),
+    tasks: tasks.map((t) => sanitizeTask(t, now)).filter((t): t is Task => t !== null),
+    events: events.map((e) => sanitizeEvent(e)).filter((e): e is GameEvent => e !== null),
   };
 }
 
@@ -231,6 +241,74 @@ const isTs = (v: unknown, now: number): v is number => isNum(v) && v >= MIN_TS &
 /** 1ファイルに含められる件数の上限 */
 const MAX_TASKS = 5_000;
 const MAX_EVENTS = 20_000;
+
+const clampInt = (v: unknown, max: number): number => (isNum(v) ? Math.min(Math.max(0, Math.floor(v)), max) : 0);
+const STAGE_IDS = new Set<string>(STAGES.map((x) => x.id));
+
+/**
+ * 保存データから読んだ値を、必ず正しい形にして返す（例外を出さない）。
+ * ブラウザの保存領域は、拡張機能・開発者ツール・古い版・書き込み途中の中断などで
+ * 想定外の中身になりうる。ここを通すことで、壊れた値が画面の描画まで届かないようにする。
+ */
+export function sanitizeState(raw: unknown, now = Date.now()): GameState {
+  const base = createInitialState(now);
+  if (!isObj(raw)) return base;
+  const c = isObj(raw.cat) ? raw.cat : {};
+  const inv = isObj(raw.inventory) ? raw.inventory : null;
+  const name = typeof c.name === "string" ? stripControl(c.name).trim().slice(0, NAME_MAX) : "";
+  return {
+    id: "main",
+    schemaVersion: SCHEMA_VERSION,
+    // 名前が読めないときは、名付けからやり直してもらう
+    onboarded: raw.onboarded === true && name !== "",
+    cat: {
+      name: name || base.cat.name,
+      xp: isNum(c.xp) ? Math.min(Math.max(0, Math.floor(c.xp)), MAX_XP) : 0,
+      fullness: isNum(c.fullness) ? Math.min(Math.max(0, c.fullness), 100) : base.cat.fullness,
+      fullnessAt: isTs(c.fullnessAt, now) ? Math.min(c.fullnessAt, now) : now,
+      petCount: clampInt(c.petCount, MAX_COUNT),
+      totalFeeds: clampInt(c.totalFeeds, MAX_COUNT),
+      bornAt: isTs(c.bornAt, now) ? Math.min(c.bornAt, now) : now,
+      ...(isTs(c.lastPetAt, now) ? { lastPetAt: c.lastPetAt } : {}),
+    },
+    inventory: inv
+      ? { kibble: clampInt(inv.kibble, MAX_COUNT), fish: clampInt(inv.fish, MAX_COUNT), feast: clampInt(inv.feast, MAX_COUNT) }
+      : base.inventory,
+  };
+}
+
+/** 読めないタスクは null（一覧から外す）。読める部分は補正して残す */
+export function sanitizeTask(raw: unknown, now = Date.now()): Task | null {
+  if (!isObj(raw) || typeof raw.id !== "string" || !raw.id || typeof raw.title !== "string") return null;
+  const title = stripControl(raw.title).replace(/\s+/g, " ").trim().slice(0, TITLE_MAX);
+  if (!title) return null;
+  const done = raw.status === "done";
+  const createdAt = isNum(raw.createdAt) ? raw.createdAt : now;
+  return {
+    id: raw.id,
+    title,
+    memo: typeof raw.memo === "string" ? stripControl(raw.memo, true).slice(0, MEMO_MAX) : "",
+    difficulty: typeof raw.difficulty === "string" && raw.difficulty in DIFFICULTIES ? (raw.difficulty as Task["difficulty"]) : "normal",
+    dueDate: typeof raw.dueDate === "string" && isValidDateKey(raw.dueDate) ? raw.dueDate : null,
+    status: done ? "done" : "todo",
+    rewardClaimed: raw.rewardClaimed === true || done,
+    createdAt,
+    updatedAt: isNum(raw.updatedAt) ? raw.updatedAt : createdAt,
+    completedAt: done ? (isNum(raw.completedAt) ? raw.completedAt : createdAt) : null,
+  };
+}
+
+export function sanitizeEvent(raw: unknown): GameEvent | null {
+  if (!isObj(raw) || !isNum(raw.at)) return null;
+  if (raw.type !== "reward" && raw.type !== "feed" && raw.type !== "levelup" && raw.type !== "evolve") return null;
+  const ev: GameEvent = { type: raw.type, at: raw.at };
+  if (isNum(raw.id)) ev.id = raw.id;
+  if (typeof raw.foodId === "string" && (FOOD_IDS as string[]).includes(raw.foodId)) ev.foodId = raw.foodId as FoodId;
+  if (typeof raw.taskTitle === "string") ev.taskTitle = stripControl(raw.taskTitle).slice(0, 80);
+  if (isNum(raw.level) && Number.isInteger(raw.level) && raw.level >= 1 && raw.level <= 10_000) ev.level = raw.level;
+  if (typeof raw.stage === "string" && STAGE_IDS.has(raw.stage)) ev.stage = raw.stage as GameEvent["stage"];
+  return ev;
+}
 
 /** インポートデータを検証し、安全な形に組み立て直す。不正なら GameError(INVALID) */
 export function parseExportData(raw: unknown, now = Date.now()): ExportData {

