@@ -1,6 +1,6 @@
 /**
  * サイドバー下の飾り：クッションの上でうとうとする、ねこ（写真）。ごはんの夢を見ている。
- * 写真は目を閉じた「ごきげん」の1枚を使い、ゆっくり呼吸させて Zzz を出す。
+ * 丸まって眠る写真を使い、ゆっくり呼吸させて Zzz を出す。
  */
 export function SleepingCat({ className }: { className?: string }) {
   const line = "#7d4a2b";
@@ -29,7 +29,7 @@ export function SleepingCat({ className }: { className?: string }) {
 
       {/* ねこ */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img className="sleep__cat" src="/cat/happy.webp" alt="" width={480} height={720} decoding="async" draggable={false} />
+      <img className="sleep__cat" src="/cat/sleep.webp" alt="" width={480} height={720} decoding="async" draggable={false} />
 
       <span className="sleep__zzz">
         <i>Z</i>
