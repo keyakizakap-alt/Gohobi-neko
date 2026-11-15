@@ -78,9 +78,14 @@ export function xpForLevel(level: number): number {
   return 10 * l * (l - 1);
 }
 
+/** 受け付ける XP の上限（Lv.10000 相当）。細工したデータで計算が重くならないようにする */
+export const MAX_XP = xpForLevel(10_000);
+
 export function levelFromXp(xp: number): number {
-  const safe = Math.max(0, xp);
-  let level = 1;
+  const safe = Number.isFinite(xp) ? Math.min(Math.max(0, xp), MAX_XP) : 0;
+  // 10 * L * (L - 1) <= xp を満たす最大の L を式で求め、丸め誤差だけ前後で補正する
+  let level = Math.max(1, Math.floor((1 + Math.sqrt(1 + 0.4 * safe)) / 2));
+  while (level > 1 && xpForLevel(level) > safe) level--;
   while (xpForLevel(level + 1) <= safe) level++;
   return level;
 }
@@ -251,7 +256,7 @@ export function applyFeed(
   }
   const food = FOODS[foodId];
   const levelBefore = levelFromXp(state.cat.xp);
-  const xp = state.cat.xp + food.xp;
+  const xp = Math.min(state.cat.xp + food.xp, MAX_XP);
   const levelAfter = levelFromXp(xp);
   const fullness = Math.min(100, currentFullness(state.cat, now) + food.fullness);
   return {
@@ -302,6 +307,15 @@ export function calcStreak(completedAts: number[], now: number): number {
   return streak;
 }
 
+/**
+ * 制御文字と、文字の並び順を変える不可視文字（表示の偽装に使える）を取り除く。
+ * keepNewline が true のときは改行とタブだけ残す（メモ用）。
+ */
+export function stripControl(text: string, keepNewline = false): string {
+  const cleaned = text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, "");
+  return keepNewline ? cleaned.replace(/\r\n?/g, "\n") : cleaned.replace(/[\t\n\r]/g, " ");
+}
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function isValidDateKey(v: string): boolean {
@@ -313,10 +327,10 @@ export function isValidDateKey(v: string): boolean {
 
 /** 入力を正規化して返す。不正なら GameError(INVALID) */
 export function normalizeTaskInput(input: TaskInput): TaskInput {
-  const title = input.title.trim();
+  const title = stripControl(String(input.title ?? "")).replace(/\s+/g, " ").trim();
   if (!title) throw new GameError("INVALID", "タスク名を入力してください");
   if (title.length > TITLE_MAX) throw new GameError("INVALID", `タスク名は${TITLE_MAX}文字までです`);
-  const memo = input.memo.trim();
+  const memo = stripControl(String(input.memo ?? ""), true).trim();
   if (memo.length > MEMO_MAX) throw new GameError("INVALID", `メモは${MEMO_MAX}文字までです`);
   if (!(input.difficulty in DIFFICULTIES)) throw new GameError("INVALID", "むずかしさが不正です");
   const dueDate = input.dueDate ? input.dueDate : null;
@@ -325,7 +339,7 @@ export function normalizeTaskInput(input: TaskInput): TaskInput {
 }
 
 export function normalizeCatName(name: string): string {
-  const n = name.trim();
+  const n = stripControl(String(name ?? "")).replace(/\s+/g, " ").trim();
   if (!n) throw new GameError("INVALID", "なまえを入力してください");
   if (n.length > NAME_MAX) throw new GameError("INVALID", `なまえは${NAME_MAX}文字までです`);
   return n;

@@ -230,3 +230,18 @@ test("Lv.5になると進化の演出が出て、姿が変わる", async ({ page
   await page.getByRole("button", { name: "やったね" }).click();
   await expect(page.locator(".lvcard__stage")).toHaveText("わかねこ");
 });
+
+test("小さいスマホ（幅320px）でも、どの画面も横にはみ出さない", async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 320, height: 640 } });
+  const page = await ctx.newPage();
+  await start(page, "ながいなまえのねこちゃん");
+  await addTask(page, "来週の定例会議で使う四半期レポートの下書きを仕上げてチームに共有する", "hard");
+  await addTask(page, "Supercalifragilisticexpialidocious-and-a-long-unbroken-word", "easy");
+  for (const path of ["/", "/tasks", "/records", "/settings"]) {
+    await page.goto(path);
+    await expect(page.locator("main .card").first()).toBeVisible();
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow, `${path} が横にはみ出している`).toBeLessThanOrEqual(0);
+  }
+  await ctx.close();
+});

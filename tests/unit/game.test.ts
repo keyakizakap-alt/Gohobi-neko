@@ -194,3 +194,19 @@ describe("育成メモ", () => {
     expect(careNotes({ ...base, streak: 7 })).toContain("7日つづけてタスクを達成中");
   });
 });
+
+describe("極端な値でも固まらない", () => {
+  it("巨大な XP でもすぐ計算でき、上限で止まる", () => {
+    const t = Date.now();
+    expect(levelFromXp(1e300)).toBe(10_000);
+    expect(levelFromXp(Number.POSITIVE_INFINITY)).toBe(1);
+    expect(levelFromXp(Number.NaN)).toBe(1);
+    expect(Date.now() - t).toBeLessThan(50);
+  });
+  it("式で求めたレベルが境界でずれない", () => {
+    for (let l = 1; l <= 3000; l++) {
+      expect(levelFromXp(xpForLevel(l))).toBe(l);
+      if (l > 1) expect(levelFromXp(xpForLevel(l) - 1)).toBe(l - 1);
+    }
+  });
+});

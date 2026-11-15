@@ -175,7 +175,7 @@ export function TaskList({ tasks, variant = "full" }: Props) {
               </div>
               <span className={`task__reward${done ? " is-got" : ""}`} title={`${done ? "もらった" : "終えるともらえる"}ごほうび：${FOODS[d.food].name}`}>
                 <FoodIcon food={d.food} size={20} />
-                +1
+                <span className="task__plus">+1</span>
               </span>
               <div className="task__actions">
                 <button type="button" className="icon-btn" onClick={() => setEditing(task)} aria-label={`「${task.title}」を編集`} title="編集">

@@ -32,7 +32,7 @@
 | 保存 | IndexedDB（[idb](https://github.com/jakearchibald/idb) 8） | 仕様指定。複数ストアをまたぐ更新をトランザクションで扱える |
 | スタイル | 素の CSS（デザイントークン＋BEM 風クラス） | 依存を増やさず、SVG アニメーションを細かく制御するため |
 | フォント | Zen Maru Gothic（@fontsource で同梱） | 外部 CDN に依存せずオフラインでもビルドできる |
-| ねこ | AI生成の写真（Canva の画像生成）を背景切り抜きして WebP 化 | 写真のリアルさ。表情は4枚の写真＋動き・色で表現 |
+| ねこ | AI生成の写真（Canva・Gemini）を背景切り抜きして WebP 化 | 写真のリアルさ。表情ごとに7枚の写真＋動きで表現 |
 | グラフィック | 自作 SVG（部屋・エサ・アイコン・首輪や王冠） | CSS で動かせ、時間帯や成長段階で描き分けられる |
 | テスト | Vitest 5 + fake-indexeddb / Playwright 1.63 | ロジックとデータ層は単体、利用フローは E2E |
 
@@ -75,11 +75,20 @@ npm run start      # 本番モードで起動
 
 ## ねこの写真について
 
-`public/cat/` の4枚（ふつう・ごきげん・食べる・あくび）は、Canva の AI 画像生成で作った写真です。背景は [rembg](https://github.com/danielgatis/rembg)（isnet-general-use モデル）で切り抜き、`scripts/prepare-cat-photos.py` で足元の位置をそろえて 480x720 の WebP にしています。
+`public/cat/` の7枚は、AI で生成した同じねこの写真です。背景は [rembg](https://github.com/danielgatis/rembg)（isnet-general-use モデル）で切り抜き、`scripts/prepare-cat-photos.py` で足元の位置をそろえて 480x720 の WebP にしています（合計 約340KB）。
 
-- 毛づくろい・眠るは「ごきげん」（目を閉じた写真）、おなかぺこぺこは「ふつう」を少しくすませて代用しています。
+| 写真 | 表情 | 作成 |
+| --- | --- | --- |
+| normal | ふつう | Canva |
+| happy | ごきげん（なでたとき） | Canva |
+| eating | 食べる | Canva |
+| yawn | あくび | Canva |
+| groom | 毛づくろい | Gemini（プロンプトは `docs/gemini/prompts.md`） |
+| sleep | 眠る（丸まった姿） | Gemini |
+| hungry | おなかぺこぺこ | Gemini |
+
 - まばたきは、目を閉じた写真を一瞬だけ重ねて表現しています。
-- 成長段階は、写真の大きさと、首輪・リボン・王冠（SVG）の重ね表示で表しています。
+- 成長段階は、写真の大きさと、首輪・リボン・王冠（SVG）の重ね表示で表しています。首が隠れる写真（食べる・眠る・毛づくろい）では首輪を出しません。
 
 ## ディレクトリ構成
 
@@ -137,14 +146,15 @@ IndexedDB のデータベース `gohobi-neko`（version 1）に保存します�
 
 - **Vercel**：リポジトリをインポートするだけ（Framework Preset: Next.js、設定変更不要）
 - **自前の Node サーバー**：`npm ci && npm run build && npm run start`
-- **静的ホスティング**：`next.config.ts` に `output: "export"` を追加すると `out/` に静的ファイルを書き出せます（この構成でのビルドは未検証）
+- セキュリティヘッダー（CSP など）は `next.config.ts` の `headers()` で付けています。Vercel と `next start` では有効です。
+- **静的ホスティング**：`next.config.ts` に `output: "export"` を追加すると `out/` に静的ファイルを書き出せます（この構成でのビルドは未検証。`headers()` は効かなくなるため、同じヘッダーをホスティング側で設定してください）
 
 ## 既知の制約
 
 - データは端末・ブラウザごとに独立しています。端末間の同期やアカウント機能はありません（バックアップファイルで移行できます）。
 - ブラウザのサイトデータを消すとデータも消えます。プライベートブラウズでは保存されない場合があります。
 - デザイン見本にあった「カテゴリのタグ」「時刻つきの期限」「通知ベル」「日付の切り替え」「並べ替え」は未実装です（むずかしさのタグと日付の期限で代用）。
-- ねこの写真は4枚のみです。毛づくろい・眠る・おなかぺこぺこ専用の写真はありません（生成サービスの利用上限のため）。写真を差し替える場合は、同じ構図の切り抜き済みPNGを用意して `scripts/prepare-cat-photos.py` を実行します。
+- 写真を差し替える場合は、同じ構図の切り抜き済みPNG（`<名前>-cut.png`）を用意して `scripts/prepare-cat-photos.py` を実行します。
 - 通知・リマインダー、繰り返しタスク、効果音、ダークモード、オフライン起動（Service Worker）は未実装です。
 - 履歴の表示は直近60件までです（保存自体は全件）。
 - 動作確認は Chromium のみです。Safari / Firefox の実機確認は行っていません。

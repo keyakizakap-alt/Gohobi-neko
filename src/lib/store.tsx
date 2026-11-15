@@ -58,6 +58,8 @@ export function toMessage(e: unknown): string {
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const dbRef = useRef<Db | null>(null);
+  /** 同じアプリを開いている別タブへ「データが変わった」と知らせる */
+  const channelRef = useRef<BroadcastChannel | null>(null);
   const [snap, setSnap] = useState<Snapshot>({
     status: "loading",
     errorMessage: null,
@@ -109,6 +111,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, [reload]);
 
+  // 別タブでの変更や、タブに戻ってきたときに、IndexedDB から読み直して表示をそろえる
+  useEffect(() => {
+    const refresh = () => {
+      const db = dbRef.current;
+      if (db) reload(db).catch(() => undefined);
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    let channel: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== "undefined") {
+      channel = new BroadcastChannel("gohobi-neko");
+      channel.onmessage = refresh;
+      channelRef.current = channel;
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      channel?.close();
+      channelRef.current = null;
+    };
+  }, [reload]);
+
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(id);
@@ -119,6 +144,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!dbRef.current) throw new GameError("STORAGE", "データの準備ができていません");
       return dbRef.current;
     };
+    const changed = () => {
+      try {
+        channelRef.current?.postMessage("changed");
+      } catch {
+        /* 通知できなくても本体の操作は成功している */
+      }
+    };
     const pushEvents = (prev: GameEvent[], added: GameEvent[]) =>
       [...added].reverse().concat(prev).slice(0, EVENT_LIMIT);
 
@@ -128,16 +160,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       async addTask(input) {
         const task = await repo.createTask(need(), input);
         setSnap((s) => ({ ...s, tasks: [...s.tasks, task] }));
+        changed();
         return task;
       },
       async editTask(id, input) {
         const task = await repo.updateTask(need(), id, input);
         setSnap((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? task : t)) }));
+        changed();
         return task;
       },
       async removeTask(id) {
         await repo.deleteTask(need(), id);
         setSnap((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== id) }));
+        changed();
       },
       async completeTask(id) {
         const r = await repo.completeTask(need(), id);
@@ -147,26 +182,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           tasks: s.tasks.map((t) => (t.id === id ? r.task : t)),
           events: r.event ? pushEvents(s.events, [r.event]) : s.events,
         }));
+        changed();
         return r;
       },
       async reopenTask(id) {
         const task = await repo.reopenTask(need(), id);
         setSnap((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? task : t)) }));
+        changed();
         return task;
       },
       async feed(foodId) {
         const r = await repo.feedCat(need(), foodId);
         setNow(Date.now());
         setSnap((s) => ({ ...s, game: r.state, events: pushEvents(s.events, r.events) }));
+        changed();
         return r;
       },
       async pet() {
         const game = await repo.petCat(need());
         setSnap((s) => ({ ...s, game }));
+        changed();
       },
       async renameCat(name) {
         const game = await repo.renameCat(need(), name);
         setSnap((s) => ({ ...s, game }));
+        changed();
       },
       exportData() {
         return repo.exportAll(need());
@@ -175,11 +215,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const db = need();
         await repo.importAll(db, raw);
         await reload(db);
+        changed();
       },
       async resetAll() {
         const db = need();
         await repo.resetAll(db);
         await reload(db);
+        changed();
       },
     };
   }, [snap, now, reload]);
