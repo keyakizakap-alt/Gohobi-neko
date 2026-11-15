@@ -199,7 +199,7 @@ small { font-size: 0.8em; }
   .nav__link.is-active { background: linear-gradient(90deg, #ffe3cb, #ffeede); color: var(--ink); font-weight: 900; }
   .nav__link.is-active svg { color: var(--accent); }
   .nav__badge { position: static; margin-left: auto; border: 0; }
-  .nav__art { display: block; width: 100%; margin-top: auto; }
+  .nav__art { display: block; width: auto; margin-top: auto; }
 }
 
 /* ---------- 共通パーツ ---------- */
@@ -1124,30 +1124,40 @@ fieldset:disabled .choice__item { opacity: 0.6; cursor: not-allowed; }
 .levelup__confetti i:nth-child(3n + 1) { background: var(--leaf); }
 .levelup__confetti i:nth-child(4n) { background: var(--pink); }
 
-/* サイドバー下：クッションでうとうとする写真のねこ */
-.sleep { position: relative; height: 200px; }
-.sleep__dream { position: absolute; left: 44%; top: 0; width: 46%; animation: dream 4s ease-in-out infinite; }
-.sleep__cushion { position: absolute; left: 6%; right: 2%; bottom: 0; height: 48px; width: 92%; }
+/* サイドバー下：ふかふかのクッションに沈んで眠る写真のねこ */
+.sleep { position: relative; height: 196px; margin-left: -14px; margin-right: -14px; flex: none; }
+.sleep__glow {
+  position: absolute;
+  left: 46%;
+  bottom: 18px;
+  width: 210px;
+  height: 150px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 236, 205, 0.95), rgba(255, 236, 205, 0));
+}
+.sleep__cushion { position: absolute; left: 46%; bottom: 6px; width: 190px; transform: translateX(-50%); }
 .sleep__cat {
   position: absolute;
-  left: 50%;
-  bottom: 6px;
-  width: 150px;
+  left: 46%;
+  bottom: 20px;
+  width: 136px;
   height: auto;
   transform: translateX(-50%);
   transform-origin: 50% 100%;
-  filter: brightness(0.96) saturate(0.95) drop-shadow(0 4px 4px rgba(125, 74, 43, 0.18));
+  filter: drop-shadow(0 3px 3px rgba(125, 74, 43, 0.22));
   animation: sleep-breathe 4.6s ease-in-out infinite;
   user-select: none;
   pointer-events: none;
 }
-.sleep__zzz { position: absolute; left: 66%; top: 92px; font-weight: 900; color: #5b6bb0; -webkit-text-stroke: 3px #fff; paint-order: stroke fill; }
-.sleep__zzz i { position: absolute; font-style: normal; opacity: 0; animation: c-zzz 3s ease-in-out infinite; }
-.sleep__zzz i:nth-child(1) { left: 0; top: 20px; font-size: 20px; }
-.sleep__zzz i:nth-child(2) { left: 14px; top: 2px; font-size: 15px; animation-delay: 0.6s; }
-.sleep__zzz i:nth-child(3) { left: 26px; top: -12px; font-size: 12px; animation-delay: 1.2s; }
-.sleep__leaf { position: absolute; left: 0; bottom: 0; width: 26px; }
-@keyframes sleep-breathe { 0%, 100% { transform: translateX(-50%) scale(1, 1); } 50% { transform: translateX(-50%) scale(1.01, 1.025); } }
+.sleep__dream { position: absolute; left: 112px; top: 2px; width: 92px; animation: dream 4s ease-in-out infinite; }
+.sleep__zzz { position: absolute; left: 112px; top: 74px; font-weight: 900; color: #6c7bbf; -webkit-text-stroke: 3px #fff; paint-order: stroke fill; }
+.sleep__zzz i { position: absolute; font-style: normal; opacity: 0; animation: c-zzz 3.2s ease-in-out infinite; }
+.sleep__zzz i:nth-child(1) { left: 0; top: 18px; font-size: 11px; }
+.sleep__zzz i:nth-child(2) { left: 9px; top: 6px; font-size: 14px; animation-delay: 0.7s; }
+.sleep__zzz i:nth-child(3) { left: 21px; top: -10px; font-size: 18px; animation-delay: 1.4s; }
+.sleep__plant { position: absolute; right: 10px; bottom: 4px; width: 26px; }
+@keyframes sleep-breathe { 0%, 100% { transform: translateX(-50%) scale(1, 1); } 50% { transform: translateX(-50%) scale(1.012, 1.03); } }
 @keyframes dream { 50% { transform: translateY(-4px); } }
 
 /* ---------- ねこ（写真）の表示とうごき ---------- */
