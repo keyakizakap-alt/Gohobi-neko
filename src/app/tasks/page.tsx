@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { FoodIcon, PlusIcon } from "@/components/Icons";
 import { TaskDialog } from "@/components/TaskDialog";
@@ -21,10 +22,15 @@ export default function TasksPage() {
     <div className="page">
       <header className="page__head">
         <h1 className="page__title">タスク管理</h1>
-        <button type="button" className="btn btn--primary page__add" onClick={() => setAdding(true)}>
-          <PlusIcon />
-          タスクを追加
-        </button>
+        <div className="page__actions">
+          <Link href="/tasks/import" className="btn btn--sm">
+            取り込む
+          </Link>
+          <button type="button" className="btn btn--primary page__add" onClick={() => setAdding(true)}>
+            <PlusIcon />
+            タスクを追加
+          </button>
+        </div>
       </header>
 
       <ul className="legend" aria-label="むずかしさと ごほうびの対応">

@@ -950,6 +950,46 @@ fieldset:disabled .choice__item { opacity: 0.6; cursor: not-allowed; }
 .legend__item small { color: var(--ink-soft); font-size: 0.72rem; white-space: nowrap; }
 @media (max-width: 560px) { .legend__item { flex-direction: column; text-align: center; gap: 2px; padding: 8px 4px; } }
 
+/* ---------- 通知の設定 ---------- */
+.notify { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-top: 14px; }
+.switch { position: relative; display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 700; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch__track { position: relative; width: 50px; height: 30px; border-radius: 999px; background: #e3d6c8; transition: background 0.2s; flex: none; }
+.switch__track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); transition: transform 0.2s; }
+.switch input:checked + .switch__track { background: var(--accent); }
+.switch input:checked + .switch__track::after { transform: translateX(20px); }
+.switch input:focus-visible + .switch__track { outline: 3px solid #ffc998; outline-offset: 2px; }
+.notify__hour { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
+.notify__hour .input { width: auto; min-height: 42px; padding: 6px 12px; }
+.notify__status { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; padding: 10px 14px; border-radius: 12px; background: var(--accent-faint); font-size: 0.88rem; }
+.notify__note { margin-top: 12px; font-size: 0.8rem; }
+
+/* ---------- 取り込み ---------- */
+.page__actions { display: flex; align-items: center; gap: 8px; }
+.import__text { min-height: 168px; margin-top: 12px; font-size: 0.95rem; line-height: 1.7; }
+.import__help { margin-top: 16px; font-size: 0.88rem; }
+.import__help summary { cursor: pointer; font-weight: 700; color: var(--accent-deep); }
+.import__help .muted { margin: 8px 0; }
+.import__sample { margin: 0; padding: 12px 14px; border-radius: 12px; background: #faf5ef; font-size: 0.78rem; line-height: 1.55; overflow-x: auto; }
+.import__notes { margin-bottom: 12px; padding: 10px 14px; border-radius: 12px; background: var(--sun-soft); font-size: 0.84rem; color: #7a5a2a; }
+.import__notes li + li { margin-top: 4px; }
+.import__list { display: grid; }
+.import__row { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.import__row:last-child { border-bottom: 0; }
+.import__row.is-off .import__fields { opacity: 0.45; }
+.import__check { display: grid; place-items: center; width: 32px; height: 46px; flex: none; }
+.import__check input { width: 20px; height: 20px; accent-color: var(--accent); }
+.import__fields { flex: 1; min-width: 0; display: grid; gap: 8px; }
+.import__title { min-height: 44px; font-weight: 700; }
+.import__dup { font-size: 0.78rem; color: #b06a1c; font-weight: 700; }
+.import__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.import__diff { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.import__chip { display: inline-flex; align-items: center; gap: 4px; min-height: 34px; padding: 2px 10px; border: 1.5px solid transparent; border-radius: 999px; font-size: 0.8rem; font-weight: 700; cursor: pointer; opacity: 0.55; }
+.import__chip.is-on { opacity: 1; border-color: currentColor; }
+.import__date { width: auto; min-height: 38px; padding: 4px 10px; font-size: 0.9rem; }
+.import__memo { font-size: 0.8rem; color: var(--ink-soft); white-space: pre-wrap; overflow-wrap: anywhere; }
+.import__foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+
 /* ---------- きろく ---------- */
 .album { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 @media (min-width: 640px) { .album { grid-template-columns: repeat(4, 1fr); } }
