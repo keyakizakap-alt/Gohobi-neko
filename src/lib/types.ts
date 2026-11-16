@@ -47,6 +47,8 @@ export interface NotifySettings {
   enabled: boolean;
   /** 通知する時刻（0〜23時）。この時刻を過ぎたら、その日の通知を出す */
   hour: number;
+  /** 通知にタスク名を出すか（プッシュ通知ではサーバーにタスク名を送るかどうかも兼ねる） */
+  showTitles: boolean;
 }
 
 export interface GameState {

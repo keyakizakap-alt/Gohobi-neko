@@ -963,6 +963,8 @@ fieldset:disabled .choice__item { opacity: 0.6; cursor: not-allowed; }
 .notify__hour .input { width: auto; min-height: 42px; padding: 6px 12px; }
 .notify__status { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; padding: 10px 14px; border-radius: 12px; background: var(--accent-faint); font-size: 0.88rem; }
 .notify__note { margin-top: 12px; font-size: 0.8rem; }
+.notify__titles { margin-top: 10px; font-weight: 500; font-size: 0.92rem; }
+.notify__push { margin-top: 10px; font-size: 0.86rem; font-weight: 700; color: #4d7a55; }
 
 /* ---------- 取り込み ---------- */
 .page__actions { display: flex; align-items: center; gap: 8px; }

@@ -37,15 +37,27 @@ export function dueReminders(tasks: Task[], settings: NotifySettings, notified: 
   return out.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "today" ? -1 : 1));
 }
 
-/** 通知の文面（複数件はまとめて1つにする） */
-export function reminderMessage(list: Reminder[], catName: string): { title: string; body: string } {
-  const today = list.filter((r) => r.kind === "today");
-  const tomorrow = list.filter((r) => r.kind === "tomorrow");
-  const names = (rs: Reminder[]) => rs.slice(0, 3).map((r) => `「${r.task.title}」`).join("") + (rs.length > 3 ? ` ほか${rs.length - 3}件` : "");
+/** 通知の文面（複数件はまとめて1つにする）。showTitles が false のときはタスク名を出さない */
+export function formatReminder(today: string[], tomorrow: string[], catName: string, showTitles = true): { title: string; body: string } {
+  const names = (list: string[]) =>
+    list.slice(0, 3).map((t) => `「${t}」`).join("") + (list.length > 3 ? ` ほか${list.length - 3}件` : "");
   const title = today.length > 0 ? `今日までのタスクが${today.length}件あるにゃ` : `明日までのタスクが${tomorrow.length}件あるにゃ`;
   const lines: string[] = [];
-  if (today.length) lines.push(`今日まで：${names(today)}`);
-  if (tomorrow.length) lines.push(`明日まで：${names(tomorrow)}`);
+  if (showTitles) {
+    if (today.length) lines.push(`今日まで：${names(today)}`);
+    if (tomorrow.length) lines.push(`明日まで：${names(tomorrow)}`);
+  } else if (today.length && tomorrow.length) {
+    lines.push(`明日までのタスクも${tomorrow.length}件あります`);
+  }
   lines.push(`終わらせて、${catName}にごはんをあげよう`);
   return { title, body: lines.join("\n") };
+}
+
+export function reminderMessage(list: Reminder[], catName: string, showTitles = true): { title: string; body: string } {
+  return formatReminder(
+    list.filter((r) => r.kind === "today").map((r) => r.task.title),
+    list.filter((r) => r.kind === "tomorrow").map((r) => r.task.title),
+    catName,
+    showTitles,
+  );
 }

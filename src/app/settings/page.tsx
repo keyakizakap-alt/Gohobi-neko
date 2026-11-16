@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ChangeEvent, type FormEvent } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useToast } from "@/components/Toast";
 import { NAME_MAX, toDateKey } from "@/lib/game";
 import { parseExportData } from "@/lib/repository";
 import { notifyPermission, requestNotifyPermission, showNotification, type NotifyPermission } from "@/lib/notifier";
+import { getPushStatus, subscribePushStatus, type PushStatus } from "@/lib/pushClient";
 import { toMessage, useStore } from "@/lib/store";
 
 export default function SettingsPage() {
@@ -21,6 +22,7 @@ export default function SettingsPage() {
 
   const notify = store.game!.notify;
   const [permission, setPermission] = useState<NotifyPermission>("default");
+  const push = useSyncExternalStore(subscribePushStatus, getPushStatus, () => ({ state: "checking" }) as PushStatus);
   useEffect(() => setPermission(notifyPermission()), []);
 
   async function onToggleNotify(enabled: boolean) {
@@ -169,7 +171,27 @@ export default function SettingsPage() {
             {permission === "unsupported" && <p>このブラウザは通知に対応していません。アプリを開いたときに画面の中でお知らせします。iPhone では、ホーム画面に追加したアプリで通知を受け取れます。</p>}
           </div>
         )}
-        <p className="muted notify__note">サーバーを使わない仕組みのため、通知はアプリを開いているあいだ（別のタブにあるときを含む）だけ届きます。</p>
+        {notify.enabled && (
+          <>
+            <label className="switch notify__titles">
+              <input type="checkbox" role="switch" checked={notify.showTitles} onChange={(e) => store.setNotify({ ...notify, showTitles: e.target.checked }).catch(() => undefined)} data-testid="notify-titles" />
+              <span className="switch__track" aria-hidden />
+              <span>通知にタスク名を表示する</span>
+            </label>
+            <p className="notify__push" data-testid="push-status">
+              {push.state === "active" && "✅ アプリを閉じていても届きます（プッシュ通知）"}
+              {push.state === "checking" && "プッシュ通知の状態を確認しています…"}
+              {push.state === "off" && "プッシュ通知は止まっています"}
+              {push.state === "error" && `⚠️ プッシュ通知を登録できませんでした：${push.message}`}
+              {push.state === "unavailable" && push.reason === "server" && "このサーバーではプッシュ通知が設定されていないため、アプリを開いているあいだだけ届きます"}
+              {push.state === "unavailable" && push.reason === "browser" && "このブラウザはプッシュ通知に対応していないため、アプリを開いているあいだだけ届きます"}
+              {push.state === "unavailable" && push.reason === "storage" && "このブラウザの設定（サイトデータの保存がオフなど）のため、プッシュ通知を使えません"}
+            </p>
+          </>
+        )}
+        <p className="muted notify__note">
+          アプリを閉じていても届けるために、期限のある未完了タスク（期限・タスク名）をサーバーに送ります。「タスク名を表示する」をオフにすると、タスク名は送らず件数だけ知らせます。通知をオフにすると、サーバーの登録も消えます。
+        </p>
       </section>
 
       <section className="card">

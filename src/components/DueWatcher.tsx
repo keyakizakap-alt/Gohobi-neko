@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useToast } from "./Toast";
 import { registerServiceWorker, showNotification } from "@/lib/notifier";
+import { getPushStatus } from "@/lib/pushClient";
 import { dueReminders, reminderMessage } from "@/lib/reminders";
 import { useStore } from "@/lib/store";
 
@@ -25,11 +26,12 @@ export function DueWatcher() {
     const list = dueReminders(tasks, game.notify, game.notified, Date.now());
     if (list.length === 0) return;
     busy.current = true;
-    const { title, body } = reminderMessage(list, game.cat.name);
+    const { title, body } = reminderMessage(list, game.cat.name, game.notify.showTitles);
     (async () => {
       // 先に記録して、別のタブと二重に知らせないようにする
       await markNotified(list.map((r) => r.key)).catch(() => undefined);
-      const shown = await showNotification(title, body, `due-${list[0]!.key}`);
+      // プッシュ通知が有効なら、システムの通知はサーバーから届くので、ここでは画面内だけで知らせる
+      const shown = getPushStatus().state === "active" ? false : await showNotification(title, body, `due-${list[0]!.key}`);
       if (!shown || document.visibilityState === "visible") toast.show(<span className="toast__due">⏰ {title}</span>);
     })().finally(() => {
       busy.current = false;

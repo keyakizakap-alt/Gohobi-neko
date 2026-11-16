@@ -71,7 +71,7 @@ const task = (over: Partial<Task>): Task => ({
 });
 
 describe("期限の通知", () => {
-  const on = { enabled: true, hour: 9 };
+  const on = { enabled: true, hour: 9, showTitles: true };
   const tasks = [
     task({ id: "a", title: "今日の", dueDate: "2026-11-16" }),
     task({ id: "b", title: "明日の", dueDate: "2026-11-17" }),

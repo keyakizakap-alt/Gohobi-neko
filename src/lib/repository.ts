@@ -320,9 +320,9 @@ export function sanitizeState(raw: unknown, now = Date.now()): GameState {
 const MAX_NOTIFIED = 500;
 
 export function sanitizeNotify(raw: unknown): GameState["notify"] {
-  if (!isObj(raw)) return { enabled: false, hour: DEFAULT_NOTIFY_HOUR };
+  if (!isObj(raw)) return { enabled: false, hour: DEFAULT_NOTIFY_HOUR, showTitles: true };
   const hour = isNum(raw.hour) && Number.isInteger(raw.hour) && raw.hour >= 0 && raw.hour <= 23 ? raw.hour : DEFAULT_NOTIFY_HOUR;
-  return { enabled: raw.enabled === true, hour };
+  return { enabled: raw.enabled === true, hour, showTitles: raw.showTitles !== false };
 }
 
 function sanitizeNotified(raw: unknown): string[] {

@@ -1,0 +1,27 @@
+# 期限の通知を1時間ごとに送る（任意）。
+# Vercel の無料プランは定期実行が1日1回までなので、設定した時刻ちょうどに届けたいときに使う。
+# 使うときは、リポジトリの Settings → Secrets and variables → Actions に次を登録する：
+#   Variables: PUSH_APP_URL   （例：https://gohobi-neko.vercel.app）
+#   Secrets:   PUSH_CRON_SECRET（Vercel の環境変数 CRON_SECRET と同じ値）
+# PUSH_APP_URL が未登録のあいだは、何もしない。
+name: push-hourly
+
+on:
+  schedule:
+    - cron: "5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  send:
+    if: ${{ vars.PUSH_APP_URL != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call push cron
+        env:
+          APP_URL: ${{ vars.PUSH_APP_URL }}
+          CRON_SECRET: ${{ secrets.PUSH_CRON_SECRET }}
+        run: |
+          curl --fail-with-body -sS -m 60 -H "Authorization: Bearer ${CRON_SECRET}" "${APP_URL%/}/api/push/cron"

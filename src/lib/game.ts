@@ -230,7 +230,7 @@ export function createInitialState(now: number): GameState {
     },
     // はじめての「エサやり」をすぐ体験できるよう、カリカリを1つプレゼント
     inventory: { kibble: 1, fish: 0, feast: 0 },
-    notify: { enabled: false, hour: DEFAULT_NOTIFY_HOUR },
+    notify: { enabled: false, hour: DEFAULT_NOTIFY_HOUR, showTitles: true },
     notified: [],
   };
 }

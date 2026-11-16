@@ -253,13 +253,13 @@ describe("取り込み・通知の保存", () => {
 
   it("通知の設定と通知済みの記録を保存し、バックアップにも残る", async () => {
     await loadState(db);
-    expect((await loadState(db)).notify).toEqual({ enabled: false, hour: 9 });
+    expect((await loadState(db)).notify).toEqual({ enabled: false, hour: 9, showTitles: true });
     await setNotify(db, { enabled: true, hour: 25 } as never);
-    expect((await loadState(db)).notify).toEqual({ enabled: true, hour: 9 }); // 範囲外の時刻は既定値に
-    await setNotify(db, { enabled: true, hour: 20 });
+    expect((await loadState(db)).notify).toEqual({ enabled: true, hour: 9, showTitles: true }); // 範囲外の時刻は既定値に
+    await setNotify(db, { enabled: true, hour: 20, showTitles: false });
     await markNotified(db, ["a:2026-11-16:today", "a:2026-11-16:today", "b:2026-11-17:tomorrow"]);
     const s = await loadState(db);
-    expect(s.notify).toEqual({ enabled: true, hour: 20 });
+    expect(s.notify).toEqual({ enabled: true, hour: 20, showTitles: false });
     expect(s.notified).toEqual(["a:2026-11-16:today", "b:2026-11-17:tomorrow"]);
     const dump = parseExportData(JSON.parse(JSON.stringify(await exportAll(db))));
     expect(dump.state.notify.hour).toBe(20);
@@ -268,7 +268,7 @@ describe("取り込み・通知の保存", () => {
 
   it("古いバックアップ（通知の項目なし）も読み込める", () => {
     const old = sanitizeState({ id: "main", onboarded: true, cat: { name: "たま" }, inventory: { kibble: 1, fish: 0, feast: 0 } });
-    expect(old.notify).toEqual({ enabled: false, hour: 9 });
+    expect(old.notify).toEqual({ enabled: false, hour: 9, showTitles: true });
     expect(old.notified).toEqual([]);
   });
 });
