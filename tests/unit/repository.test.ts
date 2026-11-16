@@ -13,6 +13,9 @@ import {
   listTasks,
   loadState,
   parseExportData,
+  createTasks,
+  setNotify,
+  markNotified,
   sanitizeEvent,
   sanitizeState,
   sanitizeTask,
@@ -235,5 +238,37 @@ describe("不可視文字の除去", () => {
     expect(t.memo).toBe("1行目\n2行目");
     expect((await renameCat(db, "た\u200Fま\t")).cat.name).toBe("たま");
     await expect(createTask(db, { ...input, title: "\u202E\u200F" })).rejects.toBeInstanceOf(GameError);
+  });
+});
+
+describe("取り込み・通知の保存", () => {
+  it("まとめて追加し、取り込んだ順に並ぶ。1件でも不正なら何も追加しない", async () => {
+    const added = await createTasks(db, [{ ...input, title: "一" }, { ...input, title: "二" }], 1_800_000_000_000);
+    expect(added.map((t) => t.title)).toEqual(["一", "二"]);
+    expect(added[0]!.createdAt).toBeGreaterThan(added[1]!.createdAt);
+    await expect(createTasks(db, [{ ...input, title: "三" }, { ...input, title: " " }])).rejects.toBeInstanceOf(GameError);
+    expect((await listTasks(db)).length).toBe(2);
+    await expect(createTasks(db, Array.from({ length: 101 }, () => input))).rejects.toBeInstanceOf(GameError);
+  });
+
+  it("通知の設定と通知済みの記録を保存し、バックアップにも残る", async () => {
+    await loadState(db);
+    expect((await loadState(db)).notify).toEqual({ enabled: false, hour: 9, showTitles: true });
+    await setNotify(db, { enabled: true, hour: 25 } as never);
+    expect((await loadState(db)).notify).toEqual({ enabled: true, hour: 9, showTitles: true }); // 範囲外の時刻は既定値に
+    await setNotify(db, { enabled: true, hour: 20, showTitles: false });
+    await markNotified(db, ["a:2026-11-16:today", "a:2026-11-16:today", "b:2026-11-17:tomorrow"]);
+    const s = await loadState(db);
+    expect(s.notify).toEqual({ enabled: true, hour: 20, showTitles: false });
+    expect(s.notified).toEqual(["a:2026-11-16:today", "b:2026-11-17:tomorrow"]);
+    const dump = parseExportData(JSON.parse(JSON.stringify(await exportAll(db))));
+    expect(dump.state.notify.hour).toBe(20);
+    expect(dump.state.notified).toHaveLength(2);
+  });
+
+  it("古いバックアップ（通知の項目なし）も読み込める", () => {
+    const old = sanitizeState({ id: "main", onboarded: true, cat: { name: "たま" }, inventory: { kibble: 1, fish: 0, feast: 0 } });
+    expect(old.notify).toEqual({ enabled: false, hour: 9, showTitles: true });
+    expect(old.notified).toEqual([]);
   });
 });

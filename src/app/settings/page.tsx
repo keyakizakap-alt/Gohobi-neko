@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ChangeEvent, type FormEvent } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useToast } from "@/components/Toast";
 import { NAME_MAX, toDateKey } from "@/lib/game";
 import { parseExportData } from "@/lib/repository";
+import { notifyPermission, requestNotifyPermission, showNotification, type NotifyPermission } from "@/lib/notifier";
+import { getPushStatus, subscribePushStatus, type PushStatus } from "@/lib/pushClient";
 import { toMessage, useStore } from "@/lib/store";
 
 export default function SettingsPage() {
@@ -17,6 +19,30 @@ export default function SettingsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => setName(cat.name), [cat.name]);
+
+  const notify = store.game!.notify;
+  const [permission, setPermission] = useState<NotifyPermission>("default");
+  const push = useSyncExternalStore(subscribePushStatus, getPushStatus, () => ({ state: "checking" }) as PushStatus);
+  useEffect(() => setPermission(notifyPermission()), []);
+
+  async function onToggleNotify(enabled: boolean) {
+    try {
+      let p = notifyPermission();
+      if (enabled && p === "default") p = await requestNotifyPermission();
+      setPermission(p);
+      await store.setNotify({ ...notify, enabled });
+      if (enabled) {
+        toast.show(p === "granted" ? "期限の通知をオンにしました" : "アプリを開いているときに、画面の中でお知らせします", "success");
+      }
+    } catch (err) {
+      toast.show(toMessage(err), "error");
+    }
+  }
+
+  async function onTestNotify() {
+    const ok = await showNotification("ごほうびねこ", `${cat.name}「通知のテストだにゃ」`, "test");
+    if (!ok) toast.show("通知を出せませんでした。ブラウザの通知の許可を確認してください", "error");
+  }
 
   async function onRename(e: FormEvent) {
     e.preventDefault();
@@ -99,6 +125,73 @@ export default function SettingsPage() {
             変更する
           </button>
         </form>
+      </section>
+
+      <section className="card" aria-labelledby="notify-title">
+        <h2 className="card__title" id="notify-title">
+          期限の通知
+        </h2>
+        <p className="muted">期限の前日と当日に、設定した時刻を過ぎたら1回ずつお知らせします。</p>
+        <div className="notify">
+          <label className="switch">
+            <input type="checkbox" role="switch" checked={notify.enabled} onChange={(e) => onToggleNotify(e.target.checked)} data-testid="notify-toggle" />
+            <span className="switch__track" aria-hidden />
+            <span>通知する</span>
+          </label>
+          <label className="notify__hour">
+            <span>時刻</span>
+            <select className="input" value={notify.hour} disabled={!notify.enabled} onChange={(e) => store.setNotify({ ...notify, hour: Number(e.target.value) }).catch(() => undefined)} aria-label="通知する時刻">
+              {Array.from({ length: 17 }, (_, i) => i + 6).map((h) => (
+                <option key={h} value={h}>
+                  {h}:00
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {notify.enabled && (
+          <div className="notify__status" data-testid="notify-status">
+            {permission === "granted" && (
+              <>
+                <p>ブラウザの通知：許可されています</p>
+                <button type="button" className="btn btn--sm" onClick={onTestNotify}>
+                  テスト通知を送る
+                </button>
+              </>
+            )}
+            {permission === "default" && (
+              <>
+                <p>ブラウザの通知が、まだ許可されていません。</p>
+                <button type="button" className="btn btn--sm" onClick={async () => setPermission(await requestNotifyPermission())}>
+                  通知を許可する
+                </button>
+              </>
+            )}
+            {permission === "denied" && <p>ブラウザで通知がブロックされています。アドレスバーの鍵マークから、このサイトの通知を「許可」にしてください。それまでは、アプリを開いたときに画面の中でお知らせします。</p>}
+            {permission === "unsupported" && <p>このブラウザは通知に対応していません。アプリを開いたときに画面の中でお知らせします。iPhone では、ホーム画面に追加したアプリで通知を受け取れます。</p>}
+          </div>
+        )}
+        {notify.enabled && (
+          <>
+            <label className="switch notify__titles">
+              <input type="checkbox" role="switch" checked={notify.showTitles} onChange={(e) => store.setNotify({ ...notify, showTitles: e.target.checked }).catch(() => undefined)} data-testid="notify-titles" />
+              <span className="switch__track" aria-hidden />
+              <span>通知にタスク名を表示する</span>
+            </label>
+            <p className="notify__push" data-testid="push-status">
+              {push.state === "active" && "✅ アプリを閉じていても届きます（プッシュ通知）"}
+              {push.state === "checking" && "プッシュ通知の状態を確認しています…"}
+              {push.state === "off" && "プッシュ通知は止まっています"}
+              {push.state === "error" && `⚠️ プッシュ通知を登録できませんでした：${push.message}`}
+              {push.state === "unavailable" && push.reason === "server" && "このサーバーではプッシュ通知が設定されていないため、アプリを開いているあいだだけ届きます"}
+              {push.state === "unavailable" && push.reason === "browser" && "このブラウザはプッシュ通知に対応していないため、アプリを開いているあいだだけ届きます"}
+              {push.state === "unavailable" && push.reason === "storage" && "このブラウザの設定（サイトデータの保存がオフなど）のため、プッシュ通知を使えません"}
+            </p>
+          </>
+        )}
+        <p className="muted notify__note">
+          アプリを閉じていても届けるために、期限のある未完了タスク（期限・タスク名）をサーバーに送ります。「タスク名を表示する」をオフにすると、タスク名は送らず件数だけ知らせます。通知をオフにすると、サーバーの登録も消えます。
+        </p>
       </section>
 
       <section className="card">

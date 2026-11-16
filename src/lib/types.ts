@@ -42,12 +42,24 @@ export interface CatState {
   bornAt: number;
 }
 
+/** 期限の通知の設定 */
+export interface NotifySettings {
+  enabled: boolean;
+  /** 通知する時刻（0〜23時）。この時刻を過ぎたら、その日の通知を出す */
+  hour: number;
+  /** 通知にタスク名を出すか（プッシュ通知ではサーバーにタスク名を送るかどうかも兼ねる） */
+  showTitles: boolean;
+}
+
 export interface GameState {
   id: "main";
   schemaVersion: number;
   onboarded: boolean;
   cat: CatState;
   inventory: Inventory;
+  notify: NotifySettings;
+  /** 通知済みの記録（`タスクID:期限:today|tomorrow`）。同じ通知を2回出さないため */
+  notified: string[];
 }
 
 export type EventType = "reward" | "feed" | "levelup" | "evolve";

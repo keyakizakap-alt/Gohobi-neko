@@ -32,6 +32,9 @@ export interface Store extends Snapshot {
   /** 満腹度の再計算用。1分ごとに更新される現在時刻 */
   now: number;
   addTask(input: TaskInput): Promise<Task>;
+  addTasks(inputs: TaskInput[]): Promise<Task[]>;
+  setNotify(notify: GameState["notify"]): Promise<void>;
+  markNotified(keys: string[]): Promise<void>;
   editTask(id: string, input: TaskInput): Promise<Task>;
   removeTask(id: string): Promise<void>;
   completeTask(id: string): Promise<repo.CompleteResult>;
@@ -162,6 +165,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setSnap((s) => ({ ...s, tasks: [...s.tasks, task] }));
         changed();
         return task;
+      },
+      async addTasks(inputs) {
+        const added = await repo.createTasks(need(), inputs);
+        setSnap((s) => ({ ...s, tasks: [...s.tasks, ...added] }));
+        changed();
+        return added;
+      },
+      async setNotify(notify) {
+        const game = await repo.setNotify(need(), notify);
+        setSnap((s) => ({ ...s, game }));
+        changed();
+      },
+      async markNotified(keys) {
+        const game = await repo.markNotified(need(), keys);
+        setSnap((s) => ({ ...s, game }));
+        changed();
       },
       async editTask(id, input) {
         const task = await repo.updateTask(need(), id, input);

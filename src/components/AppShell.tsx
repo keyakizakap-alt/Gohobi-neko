@@ -6,6 +6,8 @@ import type { ReactNode } from "react";
 import { Cat } from "./Cat";
 import { BookIcon, GearIcon, HomeIcon, ListIcon, PawIcon } from "./Icons";
 import { SleepingCat } from "./SleepingCat";
+import { DueWatcher } from "./DueWatcher";
+import { PushSync } from "./PushSync";
 import { Onboarding } from "./Onboarding";
 import { useStore } from "@/lib/store";
 
@@ -83,6 +85,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <>
             {children}
             <Onboarding />
+            <DueWatcher />
+            <PushSync />
           </>
         )}
       </main>

@@ -4,6 +4,7 @@
  */
 import type { Db } from "./db";
 import {
+  DEFAULT_NOTIFY_HOUR,
   GameError,
   MAX_XP,
   MEMO_MAX,
@@ -86,6 +87,29 @@ export async function createTask(db: Db, input: TaskInput, now = Date.now()): Pr
   };
   await db.add("tasks", task);
   return task;
+}
+
+/** 取り込んだタスクを1トランザクションでまとめて追加する（1件でも不正なら何も追加しない） */
+export const MAX_IMPORT = 100;
+
+export async function createTasks(db: Db, inputs: TaskInput[], now = Date.now()): Promise<Task[]> {
+  if (inputs.length === 0) return [];
+  if (inputs.length > MAX_IMPORT) throw new GameError("INVALID", `一度に追加できるのは${MAX_IMPORT}件までです`);
+  // 先に全件を検査してから書き込む
+  const tasks: Task[] = inputs.map((input, i) => ({
+    id: newId(),
+    ...normalizeTaskInput(input),
+    status: "todo",
+    rewardClaimed: false,
+    // 取り込んだ順に並ぶよう、作成時刻を1ミリ秒ずつずらす（新しい順に表示されるため逆順）
+    createdAt: now + (inputs.length - i),
+    updatedAt: now,
+    completedAt: null,
+  }));
+  const tx = db.transaction("tasks", "readwrite");
+  for (const t of tasks) await tx.store.add(t);
+  await tx.done;
+  return tasks;
 }
 
 export async function updateTask(db: Db, id: string, input: TaskInput, now = Date.now()): Promise<Task> {
@@ -207,6 +231,20 @@ export function petCat(db: Db, now = Date.now()): Promise<GameState> {
   return mutateState(db, (s) => ({ ...s, cat: { ...s.cat, petCount: s.cat.petCount + 1, lastPetAt: now } }), now);
 }
 
+export function setNotify(db: Db, notify: GameState["notify"]): Promise<GameState> {
+  const n = sanitizeNotify(notify);
+  return mutateState(db, (s) => ({ ...s, notify: n }));
+}
+
+/** 通知済みとして記録する（古いものから捨てて上限を保つ） */
+export function markNotified(db: Db, keys: string[]): Promise<GameState> {
+  return mutateState(db, (s) => {
+    const set = new Set(s.notified);
+    for (const k of keys) set.add(k);
+    return { ...s, notified: [...set].slice(-MAX_NOTIFIED) };
+  });
+}
+
 export function renameCat(db: Db, name: string): Promise<GameState> {
   const n = normalizeCatName(name);
   return mutateState(db, (s) => ({ ...s, onboarded: true, cat: { ...s.cat, name: n } }));
@@ -274,7 +312,22 @@ export function sanitizeState(raw: unknown, now = Date.now()): GameState {
     inventory: inv
       ? { kibble: clampInt(inv.kibble, MAX_COUNT), fish: clampInt(inv.fish, MAX_COUNT), feast: clampInt(inv.feast, MAX_COUNT) }
       : base.inventory,
+    notify: sanitizeNotify(raw.notify),
+    notified: sanitizeNotified(raw.notified),
   };
+}
+
+const MAX_NOTIFIED = 500;
+
+export function sanitizeNotify(raw: unknown): GameState["notify"] {
+  if (!isObj(raw)) return { enabled: false, hour: DEFAULT_NOTIFY_HOUR, showTitles: true };
+  const hour = isNum(raw.hour) && Number.isInteger(raw.hour) && raw.hour >= 0 && raw.hour <= 23 ? raw.hour : DEFAULT_NOTIFY_HOUR;
+  return { enabled: raw.enabled === true, hour, showTitles: raw.showTitles !== false };
+}
+
+function sanitizeNotified(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((k): k is string => typeof k === "string" && k.length <= 120).slice(-MAX_NOTIFIED);
 }
 
 /** 読めないタスクは null（一覧から外す）。読める部分は補正して残す */
@@ -345,6 +398,8 @@ export function parseExportData(raw: unknown, now = Date.now()): ExportData {
       ...(isTs(c.lastPetAt, now) ? { lastPetAt: c.lastPetAt } : {}),
     },
     inventory,
+    notify: sanitizeNotify(s.notify),
+    notified: sanitizeNotified(s.notified),
   };
   if (!Array.isArray(raw.tasks) || !Array.isArray(raw.events)) return bad("タスクのデータがありません");
   if (raw.tasks.length > MAX_TASKS || raw.events.length > MAX_EVENTS) return bad("データが多すぎます");
