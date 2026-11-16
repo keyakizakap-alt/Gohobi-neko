@@ -28,7 +28,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <nav className="nav" aria-label="メインメニュー">
         <Link href="/" className="nav__brand">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="nav__logo" src="/icon.svg" alt="" width={52} height={52} />
+          <img className="nav__logo" src="/icons/icon-192.png" alt="" width={52} height={52} />
           <span className="nav__name">ごほうびねこ</span>
           <PawIcon size={18} className="nav__paw" />
         </Link>

@@ -197,3 +197,20 @@ test("注入に成功したと仮定しても、外部への読み込み・送�
   });
   expect(r).toEqual({ script: "blocked", send: "blocked", img: "blocked", ev: "blocked" });
 });
+
+test("アプリのアイコンが、ホーム画面用（iPhone・Android）とタブ用に設定されている", async ({ page, request }) => {
+  await page.goto("/");
+  const apple = await page.locator('link[rel="apple-touch-icon"]').getAttribute("href");
+  const icon = await page.locator('link[rel="icon"]').first().getAttribute("href");
+  expect(apple).toMatch(/^\/apple-icon\.png/);
+  expect(icon).toMatch(/^\/icon\.png/);
+  await expect(page.locator('meta[name="mobile-web-app-capable"]')).toHaveAttribute("content", "yes");
+  const manifest = await (await request.get("/manifest.webmanifest")).json();
+  expect(manifest.display).toBe("standalone");
+  expect(manifest.icons.map((i: { purpose: string }) => i.purpose)).toEqual(["any", "any", "maskable"]);
+  for (const src of [apple!, icon!, ...manifest.icons.map((i: { src: string }) => i.src)]) {
+    const res = await request.get(src);
+    expect(res.status(), src).toBe(200);
+    expect(res.headers()["content-type"]).toBe("image/png");
+  }
+});
