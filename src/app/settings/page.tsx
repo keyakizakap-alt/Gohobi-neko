@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ChangeEvent, type FormEvent } from "react";
+import Link from "next/link";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useToast } from "@/components/Toast";
 import { NAME_MAX, toDateKey } from "@/lib/game";
@@ -125,6 +126,14 @@ export default function SettingsPage() {
             変更する
           </button>
         </form>
+      </section>
+
+      <section className="card">
+        <h2 className="card__title">へやの もようがえ</h2>
+        <p className="page__note">壁紙・床・家具を選べます。レベルが上がると、選べるものが増えます。</p>
+        <Link href="/room" className="btn btn--primary settings__deco">
+          もようがえする
+        </Link>
       </section>
 
       <section className="card" aria-labelledby="notify-title">

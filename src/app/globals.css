@@ -1532,3 +1532,4 @@ fieldset:disabled .choice__item { opacity: 0.6; cursor: not-allowed; }
   .deco__preview { margin: 0 -12px; }
   .deco__next { margin: 10px 12px 0; }
 }
+.settings__deco { margin-top: 12px; align-self: start; justify-self: start; }

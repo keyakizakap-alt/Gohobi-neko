@@ -49,3 +49,11 @@ test("もようがえ：壁紙と床を変え、家具をしまい、未解放�
 });
 
 const WALLS_DEFAULT = /クリーム/;
+
+test("せっていからも、もようがえを開ける", async ({ page }) => {
+  await start(page);
+  await page.goto("/settings");
+  await page.getByRole("link", { name: "もようがえする" }).click();
+  await expect(page).toHaveURL(/\/room$/);
+  await expect(page.getByRole("heading", { name: "もようがえ" })).toBeVisible();
+});
