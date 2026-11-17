@@ -1,5 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 
+// 定期実行はサーバー上の全端末に送るため、このファイルのテストは同時に動かさない
+test.describe.configure({ mode: "serial" });
+
 const CRON = { Authorization: "Bearer e2e-cron-secret" };
 
 /** ヘッドレス Chromium の通知許可の癖と、プッシュサービスへの購読を、テスト用に差し替える */
@@ -105,4 +108,39 @@ test("プッシュ通知のAPIは、別サイトからの呼び出しと不正�
   const ssrf = { ...body, subscription: { ...body.subscription, endpoint: "http://169.254.169.254/latest" } };
   expect((await request.put("/api/push/device", { data: ssrf, headers: { Origin: baseURL! } })).status()).toBe(400);
   expect((await request.get("/api/push/cron", { headers: { Authorization: "Bearer wrong" } })).status()).toBe(401);
+});
+
+test("しばらく開かないと、ねこが呼ぶ通知が届き、開くと「おかえり」と迎える", async ({ page, request }) => {
+  test.skip(test.info().project.name !== "desktop", "サーバーの状態を共有するため、PC幅だけで実行する");
+  // 3日前にアプリを開いて通知をオンにし、そのまま開かなかったことにする
+  await page.clock.install({ time: Date.now() - 3 * 86_400_000 });
+  await fakePush(page);
+  await start(page);
+  await page.goto("/settings");
+  await page.getByText("通知する").click();
+  await expect(page.getByTestId("push-status")).toContainText("アプリを閉じていても届きます");
+
+  const res = await (await request.get("/api/push/daily", { headers: CRON })).json();
+  const call = res.preview.find((p: { title: string }) => p.title === "たまが おなかを空かせて待ってるにゃ");
+  expect(call).toBeTruthy();
+  expect(call.body).toContain("ごはんをちょうだい");
+  // 同じ呼びかけは2回送らない
+  const again = await (await request.get("/api/push/daily", { headers: CRON })).json();
+  expect(again.preview.some((p: { title: string }) => p.title.includes("待ってるにゃ"))).toBe(false);
+});
+
+test("久しぶりに開くと、ねこが「おかえり」と迎える（前日に開いていれば言わない）", async ({ page }) => {
+  await start(page);
+  const daysAgo = (n: number) => {
+    const d = new Date(Date.now() - n * 86_400_000);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  await page.evaluate((v) => localStorage.setItem("gohobi-neko:last-open", v), daysAgo(1));
+  await page.reload();
+  await expect(page.getByTestId("cat-name")).toHaveText("たま");
+  await expect(page.getByText("おかえりにゃ")).toHaveCount(0);
+
+  await page.evaluate((v) => localStorage.setItem("gohobi-neko:last-open", v), daysAgo(3));
+  await page.reload();
+  await expect(page.getByText("おかえりにゃ！ 待ってたにゃ〜")).toBeVisible();
 });

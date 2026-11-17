@@ -141,6 +141,8 @@ export async function syncPush(game: GameState, tasks: Task[], now = Date.now())
       hour: game.notify.hour,
       catName: game.cat.name,
       items: pushItems(tasks, game.notify.showTitles, now),
+      // アプリを開いた日。しばらく開かなかったときに、ねこが呼ぶために使う
+      lastOpen: toDateKey(now),
     };
     // 前回と同じ内容なら送らない（日付が変わったら送り直す）
     const signature = JSON.stringify({ ...body, day: toDateKey(now) });

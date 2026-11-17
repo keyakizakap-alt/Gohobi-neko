@@ -26,6 +26,7 @@ import {
   weekRecord,
   type Mood,
 } from "@/lib/game";
+import { welcomeBackLine } from "@/lib/comeback";
 import { ACTION_MS, nextIdleDelay, pickIdleAction, shouldSleep, type IdleAction } from "@/lib/behavior";
 import { toMessage, useStore } from "@/lib/store";
 import type { FeedOutcome, FoodId } from "@/lib/types";
@@ -159,6 +160,21 @@ export default function HomePage() {
     },
     [later],
   );
+
+  // 久しぶりに開いたら、ねこが「おかえり」と迎える（前に開いた日は、この端末にだけ記録する）
+  useEffect(() => {
+    const KEY = "gohobi-neko:last-open";
+    const todayKey = toDateKey(Date.now());
+    let prev: string | null = null;
+    try {
+      prev = localStorage.getItem(KEY);
+      localStorage.setItem(KEY, todayKey);
+    } catch {
+      return;
+    }
+    const text = welcomeBackLine(prev, todayKey);
+    if (text) say(text, 6000);
+  }, [say]);
 
   const onFeed = useCallback(
     async (foodId: FoodId) => {

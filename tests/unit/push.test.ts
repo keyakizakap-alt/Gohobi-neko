@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { isAllowedEndpoint, localClock, parseDeviceInput, planPush, pruneSent } from "@/server/pushLogic";
+import { welcomeBackLine } from "@/lib/comeback";
 import { handleConfig, handleCron, handleDeleteDevice, handlePutDevice, type Sender } from "@/server/pushServer";
 
 // 2026-11-16 08:30 JST = 2026-11-15 23:30 UTC
@@ -77,7 +78,65 @@ describe("送る通知の判定", () => {
     expect(p.body).toContain("明日までのタスクも1件");
   });
   it("昨日より前の送信記録は捨てる", () => {
-    expect(pruneSent(["x:2026-11-14:today", "y:2026-11-15:today", "z:2026-11-16:today"], NOW, "Asia/Tokyo")).toEqual(["y:2026-11-15:today", "z:2026-11-16:today"]);
+    expect(pruneSent(["x:2026-11-14:today", "y:2026-11-15:today", "z:2026-11-16:today"], NOW, "Asia/Tokyo", null)).toEqual(["y:2026-11-15:today", "z:2026-11-16:today"]);
+  });
+});
+
+describe("しばらく開いていない人を、ねこが呼ぶ", () => {
+  const base = { ...parseDeviceInput(input({ items: [] })), sent: [] as string[] };
+  it("最後に開いた日が今日・昨日なら呼ばない", () => {
+    expect(planPush({ ...base, lastOpen: "2026-11-16" }, NOW, "daily")).toBeNull();
+    expect(planPush({ ...base, lastOpen: "2026-11-15" }, NOW, "daily")).toBeNull();
+    expect(planPush({ ...base, lastOpen: null }, NOW, "daily")).toBeNull();
+  });
+  it("まる1日開かなかった翌朝に呼び、ホームを開く", () => {
+    const p = planPush({ ...base, lastOpen: "2026-11-14" }, NOW, "daily")!;
+    expect(p.title).toBe("たまが おなかを空かせて待ってるにゃ");
+    expect(p.body).toContain("きのうは会えなかった");
+    expect(p.url).toBe("/");
+    expect(p.keys).toEqual(["comeback:2026-11-14:2"]);
+    // 同じ段階では2回呼ばない
+    expect(planPush({ ...base, lastOpen: "2026-11-14", sent: p.keys }, NOW + 86_400_000, "daily")).toBeNull();
+  });
+  it("5日目にもう一度だけ呼び、それ以降は呼ばない", () => {
+    const p = planPush({ ...base, lastOpen: "2026-11-11", sent: ["comeback:2026-11-11:2"] }, NOW, "daily")!;
+    expect(p.title).toBe("たまが さみしそうに待ってるにゃ…");
+    expect(p.body).toContain("4日も会えてない");
+    const sent = ["comeback:2026-11-11:2", "comeback:2026-11-11:5"];
+    expect(planPush({ ...base, lastOpen: "2026-11-11", sent }, NOW + 5 * 86_400_000, "daily")).toBeNull();
+  });
+  it("期限の通知とまとめて1通にする", () => {
+    const dev = { ...parseDeviceInput(input()), sent: [] as string[], lastOpen: "2026-11-14" };
+    const p = planPush(dev, NOW, "daily")!;
+    expect(p.title).toContain("待ってるにゃ");
+    expect(p.body).toContain("今日までのタスクが1件");
+    expect(p.keys).toEqual(["a:2026-11-16:today", "b:2026-11-17:tomorrow", "comeback:2026-11-14:2"]);
+  });
+  it("1時間ごとの呼び出しでは、設定時刻まで待つ", () => {
+    expect(planPush({ ...base, lastOpen: "2026-11-14" }, NOW, "hourly")).toBeNull();
+    expect(planPush({ ...base, lastOpen: "2026-11-14" }, NOW + 3_600_000, "hourly")).not.toBeNull();
+  });
+  it("アプリを開いたら、呼んだ記録を捨てて次に備える", () => {
+    const sent = ["comeback:2026-11-14:2", "a:2026-11-16:today"];
+    expect(pruneSent(sent, NOW, "Asia/Tokyo", "2026-11-14")).toEqual(sent);
+    expect(pruneSent(sent, NOW, "Asia/Tokyo", "2026-11-16")).toEqual(["a:2026-11-16:today"]);
+  });
+  it("最後に開いた日の形式を検査する（古い端末は送ってこなくてもよい）", () => {
+    expect(parseDeviceInput(input()).lastOpen).toBeNull();
+    expect(parseDeviceInput(input({ lastOpen: "2026-11-16" })).lastOpen).toBe("2026-11-16");
+    expect(() => parseDeviceInput(input({ lastOpen: "11/16" }))).toThrow();
+    expect(() => parseDeviceInput(input({ lastOpen: "2026-13-40" }))).toThrow();
+    expect(() => parseDeviceInput(input({ lastOpen: 20261116 }))).toThrow();
+  });
+});
+
+describe("おかえりのひとこと", () => {
+  it("まる1日以上あいたときだけ迎える", () => {
+    expect(welcomeBackLine(null, "2026-11-16")).toBeNull();
+    expect(welcomeBackLine("2026-11-15", "2026-11-16")).toBeNull();
+    expect(welcomeBackLine("2026-11-14", "2026-11-16")).toBe("おかえりにゃ！ 待ってたにゃ〜");
+    expect(welcomeBackLine("2026-11-10", "2026-11-16")).toContain("6日ぶり");
+    expect(welcomeBackLine("broken", "2026-11-16")).toBeNull();
   });
 });
 
@@ -124,5 +183,23 @@ describe("API", () => {
     // 端末がタスクを送り直しても、送信済みの記録は残る
     await handlePutDevice(req("PUT", input()), NOW + 120_000);
     expect(await (await handleCron(cronReq(), "hourly", NOW + 3_600_000, sender)).json()).toMatchObject({ sent: 0 });
+  });
+
+  it("定期実行：しばらく開いていない端末にはホームを開く呼びかけを送り、開いたらまた呼べるようになる", async () => {
+    await handlePutDevice(req("PUT", input({ id: "dev-3", items: [], lastOpen: "2026-11-14" })), NOW - 86_400_000);
+    const payloads: { title: string; url: string }[] = [];
+    const sender: Sender = async (_sub, payload) => {
+      payloads.push(JSON.parse(payload));
+      return { statusCode: 201 };
+    };
+    await handleCron(cronReq(), "daily", NOW, sender);
+    expect(payloads.find((p) => p.title.includes("待ってる"))).toMatchObject({ url: "/" });
+    const n = payloads.length;
+    await handleCron(cronReq(), "daily", NOW + 3_600_000, sender);
+    expect(payloads.length).toBe(n);
+    // 開いた（今日の日付で登録し直した）ので、呼ぶ必要はない
+    await handlePutDevice(req("PUT", input({ id: "dev-3", items: [], lastOpen: "2026-11-16" })), NOW + 7_200_000);
+    await handleCron(cronReq(), "daily", NOW + 86_400_000, sender);
+    expect(payloads.length).toBe(n);
   });
 });

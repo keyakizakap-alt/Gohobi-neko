@@ -100,7 +100,7 @@ export async function handlePutDevice(req: Request, now = Date.now()): Promise<R
     ...rest,
     secretHash,
     // 期限を変えたタスクは、新しい期限でまた知らせる（キーに期限が入っているので自然にそうなる）
-    sent: pruneSent(current?.sent ?? [], now, input.timeZone),
+    sent: pruneSent(current?.sent ?? [], now, input.timeZone, input.lastOpen),
     updatedAt: now,
   };
   await store.put(record);
@@ -168,9 +168,9 @@ export async function handleCron(req: Request, mode: "hourly" | "daily", now = D
     const plan = planPush(device, now, mode);
     if (!plan) continue;
     try {
-      await send(device.subscription, JSON.stringify({ title: plan.title, body: plan.body, tag: plan.tag, url: "/tasks" }));
+      await send(device.subscription, JSON.stringify({ title: plan.title, body: plan.body, tag: plan.tag, url: plan.url }));
       if (process.env.PUSH_DRY_RUN === "1") preview.push({ title: plan.title, body: plan.body });
-      device.sent = pruneSent([...device.sent, ...plan.keys], now, device.timeZone);
+      device.sent = pruneSent([...device.sent, ...plan.keys], now, device.timeZone, device.lastOpen ?? null);
       await store.put(device);
       sent++;
     } catch (e) {
