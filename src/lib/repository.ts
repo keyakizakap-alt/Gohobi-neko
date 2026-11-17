@@ -3,9 +3,11 @@
  * 「タスクは完了したのにエサが増えていない」といった不整合を防ぐ。
  */
 import type { Db } from "./db";
+import { sanitizeRoom, type RoomConfig } from "./room";
 import {
   DEFAULT_NOTIFY_HOUR,
   GameError,
+  levelFromXp,
   MAX_XP,
   MEMO_MAX,
   NAME_MAX,
@@ -231,6 +233,11 @@ export function petCat(db: Db, now = Date.now()): Promise<GameState> {
   return mutateState(db, (s) => ({ ...s, cat: { ...s.cat, petCount: s.cat.petCount + 1, lastPetAt: now } }), now);
 }
 
+/** 部屋のもようがえを保存する（まだ解放されていないものは選べない） */
+export function setRoom(db: Db, room: RoomConfig): Promise<GameState> {
+  return mutateState(db, (s) => ({ ...s, room: sanitizeRoom(room, levelFromXp(s.cat.xp)) }));
+}
+
 export function setNotify(db: Db, notify: GameState["notify"]): Promise<GameState> {
   const n = sanitizeNotify(notify);
   return mutateState(db, (s) => ({ ...s, notify: n }));
@@ -314,6 +321,7 @@ export function sanitizeState(raw: unknown, now = Date.now()): GameState {
       : base.inventory,
     notify: sanitizeNotify(raw.notify),
     notified: sanitizeNotified(raw.notified),
+    room: sanitizeRoom(raw.room, levelFromXp(isNum(c.xp) ? Math.min(Math.max(0, Math.floor(c.xp)), MAX_XP) : 0)),
   };
 }
 
@@ -400,6 +408,7 @@ export function parseExportData(raw: unknown, now = Date.now()): ExportData {
     inventory,
     notify: sanitizeNotify(s.notify),
     notified: sanitizeNotified(s.notified),
+    room: sanitizeRoom(s.room, levelFromXp(Math.floor(c.xp))),
   };
   if (!Array.isArray(raw.tasks) || !Array.isArray(raw.events)) return bad("タスクのデータがありません");
   if (raw.tasks.length > MAX_TASKS || raw.events.length > MAX_EVENTS) return bad("データが多すぎます");

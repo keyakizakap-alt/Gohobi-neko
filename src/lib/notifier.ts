@@ -32,7 +32,7 @@ export async function requestNotifyPermission(): Promise<NotifyPermission> {
 /** 通知を出す。出せたら true */
 export async function showNotification(title: string, body: string, tag: string): Promise<boolean> {
   if (notifyPermission() !== "granted") return false;
-  const options: NotificationOptions = { body, tag, icon: "/icon.svg", badge: "/icon.svg", data: { url: "/tasks" } };
+  const options: NotificationOptions = { body, tag, icon: "/icons/icon-192.png", badge: "/icons/icon-192.png", data: { url: "/tasks" } };
   const reg = await registerServiceWorker();
   try {
     if (reg) {

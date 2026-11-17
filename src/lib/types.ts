@@ -51,6 +51,8 @@ export interface NotifySettings {
   showTitles: boolean;
 }
 
+import type { RoomConfig } from "./room";
+
 export interface GameState {
   id: "main";
   schemaVersion: number;
@@ -58,6 +60,8 @@ export interface GameState {
   cat: CatState;
   inventory: Inventory;
   notify: NotifySettings;
+  /** 部屋のもようがえ */
+  room: RoomConfig;
   /** 通知済みの記録（`タスクID:期限:today|tomorrow`）。同じ通知を2回出さないため */
   notified: string[];
 }

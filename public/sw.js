@@ -18,7 +18,7 @@ self.addEventListener("push", (event) => {
   const tag = typeof data.tag === "string" ? data.tag.slice(0, 64) : "due";
   // 同じサイト内のパスだけを開く
   const url = typeof data.url === "string" && data.url.startsWith("/") && !data.url.startsWith("//") ? data.url : "/tasks";
-  event.waitUntil(self.registration.showNotification(title, { body, tag, icon: "/icon.svg", badge: "/icon.svg", data: { url } }));
+  event.waitUntil(self.registration.showNotification(title, { body, tag, icon: "/icons/icon-192.png", badge: "/icons/icon-192.png", data: { url } }));
 });
 
 self.addEventListener("notificationclick", (event) => {

@@ -10,6 +10,8 @@ export const metadata: Metadata = {
   title: "ごほうびねこ",
   description: "タスクを終えるとエサがもらえて、ねこが育つ。ごほうび型のタスク管理アプリ。",
   applicationName: "ごほうびねこ",
+  // iPhone で「ホーム画面に追加」したとき、アプリとして全画面で開く（プッシュ通知にも必要）
+  appleWebApp: { capable: true, title: "ごほうびねこ", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {

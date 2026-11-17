@@ -113,6 +113,19 @@ export const CatFaceIcon = ({ size = 24, className }: P) => (
     <path d="M9 12.500v.5M15 12.500v.5M10.500 16q1.500 1.200 3 0" />
   </svg>
 );
+export const SofaIcon = ({ size = 20, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <path d="M5 11V8a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v3" />
+    <path d="M3 13a2 2 0 0 1 4 0v2h10v-2a2 2 0 0 1 4 0v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    <path d="M6 19v2M18 19v2" />
+  </svg>
+);
+export const LockIcon = ({ size = 16, className }: P) => (
+  <svg {...base(size)} className={className}>
+    <rect x="5" y="11" width="14" height="10" rx="2.5" />
+    <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+  </svg>
+);
 export const FlameIcon = ({ size = 22, className }: P) => (
   <svg {...base(size)} className={className}>
     <path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2 1-3.2 2-4.2.4 1.4 1 2 1.8 2.4C10.5 8.5 11 5.5 12 3z" />

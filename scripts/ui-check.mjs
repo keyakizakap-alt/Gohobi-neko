@@ -6,7 +6,7 @@ const now = new Date().setHours(10, 30, 0, 0); const DAY = 864e5;
 const day = (o) => { const d = new Date(now + o * DAY); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 const task = (id, title, difficulty, extra = {}) => ({ id, title, memo: "", difficulty, dueDate: null, status: "todo", rewardClaimed: false, createdAt: now - 1000 * Number(id.slice(1)), updatedAt: now, completedAt: null, ...extra });
 const data = (xp, name = "たま") => ({ app: "gohobi-neko", schemaVersion: 1, exportedAt: now,
-  state: { id: "main", schemaVersion: 1, onboarded: true, inventory: { kibble: 12, fish: 3, feast: 1 }, cat: { name, xp, fullness: 62, fullnessAt: now, petCount: 42, totalFeeds: 37, bornAt: now - 20 * DAY } },
+  state: { id: "main", schemaVersion: 1, onboarded: true, inventory: { kibble: 12, fish: 3, feast: 1 }, cat: { name, xp, fullness: 62, fullnessAt: now, petCount: 42, totalFeeds: 37, bornAt: now - 20 * DAY }, ...(xp > 2000 ? { room: { wall: "night-star", floor: "carpet", furniture: { tower: "tall", plant: "flower", lamp: "andon", cushion: "box", rug: "heart", toy: "mouse", frame: "clock" } } } : {}) },
   tasks: [
     task("t1", "来週の定例会議で使う四半期レポートの下書きを仕上げてチームに共有する", "hard", { dueDate: day(0), memo: "構成→本文→図の順で。レビュー依頼も忘れずに送ること" }),
     task("t2", "メールに返信する", "easy"), task("t3", "30分ウォーキング", "normal", { dueDate: day(1) }),
@@ -30,7 +30,7 @@ for (const w of [320, 360, 390, 430, 600, 768, 900, 1024, 1280, 1920]) {
   await p.getByRole("dialog").getByRole("button", { name: "復元する" }).click();
   await p.waitForFunction(() => !document.querySelector("dialog[open]"));
   await p.waitForTimeout(3300);
-  for (const [path, name] of [["/", "home"], ["/tasks", "tasks"], ["/records", "records"], ["/settings", "settings"]]) {
+  for (const [path, name] of [["/", "home"], ["/tasks", "tasks"], ["/records", "records"], ["/settings", "settings"], ["/room", "room"]]) {
     await p.goto(B + path); await p.waitForSelector("main .card"); await p.waitForTimeout(350);
     await p.screenshot({ path: `${out}/${String(w).padStart(4, "0")}-${name}.png`, fullPage: true });
     // 機械的な検出：はみ出し・重なり・切れた文字

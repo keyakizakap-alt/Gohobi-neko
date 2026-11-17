@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CatRoom, phaseOf, type DayPhase } from "@/components/CatRoom";
-import { BowlIcon, CalendarIcon, CatFaceIcon, CheckIcon, ClipboardIcon, FlameIcon, FoodIcon, HeartIcon, NoteIcon, PawIcon, PlusIcon, SunIcon } from "@/components/Icons";
+import { SofaIcon, BowlIcon, CalendarIcon, CatFaceIcon, CheckIcon, ClipboardIcon, FlameIcon, FoodIcon, HeartIcon, NoteIcon, PawIcon, PlusIcon, SunIcon } from "@/components/Icons";
 import { LevelUpDialog } from "@/components/LevelUpDialog";
 import { Meter } from "@/components/Meter";
 import { TaskDialog } from "@/components/TaskDialog";
@@ -270,6 +270,13 @@ export default function HomePage() {
             heartBurst={hearts}
             xpPop={xpPop}
             onPet={onPet}
+            room={game.room}
+            corner={
+              <Link href="/room" className="room__deco" aria-label="もようがえ">
+                <SofaIcon size={18} />
+                <span>もようがえ</span>
+              </Link>
+            }
             overlay={
               <div className="lvcard">
                 <p className="lvcard__name">
