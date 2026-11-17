@@ -11,6 +11,15 @@ const MAX_BODY = 16_000;
 const MAX_DEVICES = 2_000;
 const RATE_LIMIT = 30; // 10分あたり、1つの接続元から
 const RATE_WINDOW = 600;
+/** 1つの接続元から1日に新しく登録できる端末の数（偽の登録で上限を埋められないように） */
+const NEW_DEVICE_LIMIT = 10;
+const NEW_DEVICE_WINDOW = 86_400;
+/**
+ * この日数のあいだ更新のない登録は消す。端末はアプリを開くたびに登録を更新し、
+ * 送る通知は最後の更新から最長でも約2週間分しかないので、消しても届く通知は変わらない。
+ */
+export const DEVICE_TTL_DAYS = 30;
+const DEVICE_ID = /^[A-Za-z0-9-]{1,64}$/;
 
 const json = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: { "Cache-Control": "no-store" } });
@@ -36,9 +45,14 @@ function sameHash(a: string, b: string): boolean {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
+/**
+ * 呼び出し元の識別子（回数制限用）。Vercel が付ける、書き換えられないヘッダーを優先する
+ * （x-forwarded-for は Vercel 上では上書きされるが、前段にプロキシがあると書き換わりうる）。
+ */
 function clientKey(req: Request): string {
-  const fwd = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return sha256(fwd || req.headers.get("x-real-ip") || "local").slice(0, 32);
+  const first = (h: string) => req.headers.get(h)?.split(",")[0]?.trim();
+  const ip = first("x-vercel-forwarded-for") || first("x-real-ip") || first("x-forwarded-for") || "local";
+  return sha256(ip).slice(0, 32);
 }
 
 /** 同じサイトからの呼び出しか（他のサイトから勝手に登録させない） */
@@ -53,9 +67,29 @@ function sameOrigin(req: Request): boolean {
   }
 }
 
+/** 本文を上限まで読む。上限を超えたら、全部を読み込む前に打ち切る（大きなデータでメモリを使わせない） */
+async function readLimited(req: Request): Promise<string> {
+  const declared = Number(req.headers.get("content-length") ?? "0");
+  if (declared > MAX_BODY) throw new InputError("データが大きすぎます");
+  if (!req.body) return "";
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_BODY) {
+      await reader.cancel().catch(() => undefined);
+      throw new InputError("データが大きすぎます");
+    }
+    chunks.push(value);
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks));
+}
+
 async function readJson(req: Request): Promise<unknown> {
-  const text = await req.text();
-  if (text.length > MAX_BODY) throw new InputError("データが大きすぎます");
+  const text = await readLimited(req);
   try {
     return JSON.parse(text);
   } catch {
@@ -93,7 +127,10 @@ export async function handlePutDevice(req: Request, now = Date.now()): Promise<R
   const current = await store.get(input.id);
   const secretHash = sha256(input.secret);
   if (current && !sameHash(current.secretHash, secretHash)) return json({ error: "この端末の情報は更新できません" }, 403);
-  if (!current && (await store.count()) >= MAX_DEVICES) return json({ error: "登録できる端末の数の上限です" }, 503);
+  if (!current) {
+    if ((await store.count()) >= MAX_DEVICES) return json({ error: "登録できる端末の数の上限です" }, 503);
+    if ((await store.hit(`new:${clientKey(req)}`, NEW_DEVICE_WINDOW)) > NEW_DEVICE_LIMIT) return json({ error: "回数が多すぎます。しばらく待ってください" }, 429);
+  }
   const { secret: _secret, ...rest } = input;
   void _secret;
   const record: DeviceRecord = {
@@ -120,7 +157,7 @@ export async function handleDeleteDevice(req: Request): Promise<Response> {
     throw e;
   }
   const b = body as { id?: unknown; secret?: unknown };
-  if (typeof b.id !== "string" || typeof b.secret !== "string") return json({ error: "形式が正しくありません" }, 400);
+  if (typeof b.id !== "string" || !DEVICE_ID.test(b.id) || typeof b.secret !== "string" || b.secret.length > 128) return json({ error: "形式が正しくありません" }, 400);
   const current = await store.get(b.id);
   if (current && !sameHash(current.secretHash, sha256(b.secret))) return json({ error: "この端末の情報は消せません" }, 403);
   if (current) await store.del(b.id);
@@ -151,6 +188,7 @@ export async function handleCron(req: Request, mode: "hourly" | "daily", now = D
     sender ??
     (process.env.PUSH_DRY_RUN === "1"
       ? async (sub, payload) => {
+          if (dryRunLog.length >= 500) dryRunLog.shift();
           dryRunLog.push({ endpoint: sub.endpoint, payload: JSON.parse(payload) });
           return { statusCode: 201 };
         }
@@ -165,11 +203,17 @@ export async function handleCron(req: Request, mode: "hourly" | "daily", now = D
       await store.del(id);
       continue;
     }
+    // 長いあいだ更新のない登録（使われなくなった端末や、偽の登録）を消す
+    if (now - device.updatedAt > DEVICE_TTL_DAYS * 86_400_000) {
+      await store.del(id);
+      removed++;
+      continue;
+    }
     const plan = planPush(device, now, mode);
     if (!plan) continue;
     try {
       await send(device.subscription, JSON.stringify({ title: plan.title, body: plan.body, tag: plan.tag, url: plan.url, image: plan.image }));
-      if (process.env.PUSH_DRY_RUN === "1") preview.push({ title: plan.title, body: plan.body });
+      if (process.env.PUSH_DRY_RUN === "1" && preview.length < 200) preview.push({ title: plan.title, body: plan.body });
       device.sent = pruneSent([...device.sent, ...plan.keys], now, device.timeZone, device.lastOpen ?? null);
       await store.put(device);
       sent++;

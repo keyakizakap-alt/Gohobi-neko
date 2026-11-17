@@ -18,6 +18,8 @@ export interface PushStore {
 }
 
 const PREFIX = "gohobi:push:";
+/** 登録の保存期間（秒）。定期実行が止まっていても、古い登録が残り続けないようにする */
+const DEVICE_EXPIRE = 35 * 86_400;
 
 function redisStore(redis: Redis): PushStore {
   return {
@@ -26,7 +28,7 @@ function redisStore(redis: Redis): PushStore {
       return (await redis.get<DeviceRecord>(`${PREFIX}dev:${id}`)) ?? null;
     },
     async put(device) {
-      await redis.set(`${PREFIX}dev:${device.id}`, device);
+      await redis.set(`${PREFIX}dev:${device.id}`, device, { ex: DEVICE_EXPIRE });
       await redis.sadd(`${PREFIX}devices`, device.id);
     },
     async del(id) {
@@ -40,9 +42,9 @@ function redisStore(redis: Redis): PushStore {
       return redis.scard(`${PREFIX}devices`);
     },
     async hit(key, ttl) {
+      // 期限の設定と回数の加算を1回のトランザクションで行う（途中で失敗して、期限のない記録が残らないように）
       const k = `${PREFIX}rl:${key}`;
-      const n = await redis.incr(k);
-      if (n === 1) await redis.expire(k, ttl);
+      const [, n] = await redis.multi().set(k, 0, { nx: true, ex: ttl }).incr(k).exec<[unknown, number]>();
       return n;
     },
   };
@@ -72,6 +74,8 @@ function memoryStore(): PushStore {
     },
     async hit(key, ttl) {
       const now = Date.now();
+      // 期限切れの記録を時々掃除する（開発・テスト用のメモリが増え続けないように）
+      if (hits.size > 10_000) for (const [k, v] of hits) if (v.until < now) hits.delete(k);
       const h = hits.get(key);
       if (!h || h.until < now) {
         hits.set(key, { n: 1, until: now + ttl * 1000 });
