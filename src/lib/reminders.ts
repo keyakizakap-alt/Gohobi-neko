@@ -40,23 +40,32 @@ export function dueReminders(tasks: Task[], settings: NotifySettings, notified: 
 
 /**
  * 通知の文面（複数件はまとめて1つにする）。showTitles が false のときはタスク名を出さない。
- * 期限切れがあれば、ねこは「ご機嫌ななめ」。今日・明日だけなら、にっこり応援する。
+ * 期限との関係で、ねこの気持ちが変わる（いちばん遅れているものに合わせる）。
+ * - 期限から2日以上過ぎた（late2）→ 怒（むすっ）
+ * - 期限の翌日（late1）           → 哀（しょんぼり）
+ * - 今日・明日が期限              → 楽（にっこり応援）
  */
 export function formatReminder(
   today: string[],
   tomorrow: string[],
   catName: string,
   showTitles = true,
-  overdue: string[] = [],
+  late1: string[] = [],
+  late2: string[] = [],
 ): { title: string; body: string; image: string } {
   const names = (list: string[]) =>
     list.slice(0, 3).map((t) => `「${t}」`).join("") + (list.length > 3 ? ` ほか${list.length - 3}件` : "");
   const lines: string[] = [];
-  if (overdue.length) {
-    lines.push(showTitles ? `期限切れ：${names(overdue)}` : `期限が過ぎたタスクが${overdue.length}件あるにゃ`);
+  const late = [...late2, ...late1];
+  if (late.length) {
+    lines.push(showTitles ? `期限切れ：${names(late)}` : `期限が過ぎたタスクが${late.length}件あるにゃ`);
     if (today.length) lines.push(showTitles ? `今日まで：${names(today)}` : `今日までのタスクも${today.length}件あります`);
-    lines.push(`終わらせて、${catName}のきげんを直してあげて`);
-    return { title: `${catName}が ご機嫌ななめにゃ`, body: lines.join("\n"), image: NOTIFY_IMAGE.grumpy };
+    if (late2.length) {
+      lines.push(`早く終わらせて、${catName}のきげんを直してあげて`);
+      return { title: `${catName}が おこってるにゃ！`, body: lines.join("\n"), image: NOTIFY_IMAGE.grumpy };
+    }
+    lines.push("いまからでも終わらせてくれたら、うれしいにゃ");
+    return { title: `${catName}が かなしそうにしてるにゃ…`, body: lines.join("\n"), image: NOTIFY_IMAGE.lonely };
   }
   const title = today.length > 0 ? `今日までのタスクが${today.length}件あるにゃ` : `明日までのタスクが${tomorrow.length}件あるにゃ`;
   if (showTitles) {
@@ -65,7 +74,7 @@ export function formatReminder(
   } else if (today.length && tomorrow.length) {
     lines.push(`明日までのタスクも${tomorrow.length}件あります`);
   }
-  lines.push(`${catName}が応援してるにゃ。終わったら、ごはんをちょうだい`);
+  lines.push(`${catName}が応援してるにゃ。早く終わったら、もっとよろこぶにゃ`);
   return { title, body: lines.join("\n"), image: NOTIFY_IMAGE.welcome };
 }
 

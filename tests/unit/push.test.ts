@@ -77,8 +77,8 @@ describe("送る通知の判定", () => {
     expect(p.body).not.toContain("「");
     expect(p.body).toContain("明日までのタスクも1件");
   });
-  it("昨日より前の送信記録は捨てる", () => {
-    expect(pruneSent(["x:2026-11-14:today", "y:2026-11-15:today", "z:2026-11-16:today"], NOW, "Asia/Tokyo", null)).toEqual(["y:2026-11-15:today", "z:2026-11-16:today"]);
+  it("2日より前の送信記録は捨てる", () => {
+    expect(pruneSent(["w:2026-11-13:today", "x:2026-11-14:today", "y:2026-11-15:today", "z:2026-11-16:today"], NOW, "Asia/Tokyo", null)).toEqual(["x:2026-11-14:today", "y:2026-11-15:today", "z:2026-11-16:today"]);
   });
 });
 
@@ -123,17 +123,24 @@ describe("しばらく開いていない人を、ねこが呼ぶ", () => {
     expect(pruneSent(sent, NOW, "Asia/Tokyo", "2026-11-14")).toEqual(sent);
     expect(pruneSent(sent, NOW, "Asia/Tokyo", "2026-11-16")).toEqual(["a:2026-11-16:today"]);
   });
-  it("期限の翌日に1回だけ、ご機嫌ななめで知らせる（期限切れのタスク）", () => {
+  it("期限を過ぎたら、翌日は かなしそうに、2日後は おこって1回ずつ知らせる", () => {
     const dev = { ...parseDeviceInput(input({ items: [{ k: "x", t: "請求書を送る", d: "2026-11-15" }, { k: "a", t: "今日の提出", d: "2026-11-16" }] })), sent: [] as string[], lastOpen: "2026-11-16" };
     const p = planPush(dev, NOW, "daily")!;
-    expect(p.title).toBe("たまが ご機嫌ななめにゃ");
+    expect(p.title).toBe("たまが かなしそうにしてるにゃ…");
     expect(p.body).toContain("期限切れ：「請求書を送る」");
     expect(p.body).toContain("今日まで：「今日の提出」");
-    expect(p.image).toBe("/notify/grumpy.jpg");
-    expect(p.keys).toEqual(["x:2026-11-15:overdue", "a:2026-11-16:today"]);
+    expect(p.image).toBe("/notify/lonely.jpg");
+    expect(p.keys).toEqual(["x:2026-11-15:late1", "a:2026-11-16:today"]);
     expect(planPush({ ...dev, sent: p.keys }, NOW + 3_600_000, "daily")).toBeNull();
-    // 2日以上前に過ぎたものは、もう知らせない
-    expect(planPush({ ...dev, items: [{ k: "y", t: "古い", d: "2026-11-14" }] }, NOW, "daily")).toBeNull();
+    // 翌日（期限の2日後）は おこる。送った記録は2日間残る
+    const next = planPush({ ...dev, items: [dev.items[0]!], sent: p.keys }, NOW + 86_400_000, "daily")!;
+    expect(next.title).toBe("たまが おこってるにゃ！");
+    expect(next.image).toBe("/notify/grumpy.jpg");
+    expect(next.keys).toEqual(["x:2026-11-15:late2"]);
+    expect(pruneSent([...p.keys, ...next.keys], NOW + 86_400_000, "Asia/Tokyo", null)).toEqual(expect.arrayContaining(["x:2026-11-15:late2"]));
+    expect(planPush({ ...dev, items: [dev.items[0]!], sent: [...p.keys, ...next.keys] }, NOW + 86_400_000 + 3_600_000, "daily")).toBeNull();
+    // 3日以上前に過ぎたものは、もう知らせない
+    expect(planPush({ ...dev, items: [{ k: "y", t: "古い", d: "2026-11-13" }] }, NOW, "daily")).toBeNull();
     // タスク名を出さない設定なら、件数だけ
     const hidden = planPush({ ...dev, items: dev.items.map((i) => ({ ...i, t: "" })) }, NOW, "daily")!;
     expect(hidden.body).toContain("期限が過ぎたタスクが1件");
@@ -142,7 +149,7 @@ describe("しばらく開いていない人を、ねこが呼ぶ", () => {
   it("今日・明日の期限だけなら、にっこり応援する", () => {
     const p = planPush({ ...parseDeviceInput(input()), sent: [] as string[] }, NOW, "daily")!;
     expect(p.image).toBe("/notify/welcome.jpg");
-    expect(p.body).toContain("たまが応援してるにゃ");
+    expect(p.body).toContain("たまが応援してるにゃ。早く終わったら、もっとよろこぶにゃ");
   });
   it("最後に開いた日の形式を検査する（古い端末は送ってこなくてもよい）", () => {
     expect(parseDeviceInput(input()).lastOpen).toBeNull();

@@ -27,6 +27,7 @@ import {
   type Mood,
 } from "@/lib/game";
 import { daysBetween, welcomeBackLine } from "@/lib/comeback";
+import { EMOTION_FACE, completeLine, emotionOnComplete, emotionWhileOverdue, overdueLine } from "@/lib/emotion";
 import type { CatFace } from "@/components/Cat";
 import { ACTION_MS, nextIdleDelay, pickIdleAction, shouldSleep, type IdleAction } from "@/lib/behavior";
 import { toMessage, useStore } from "@/lib/store";
@@ -47,7 +48,6 @@ function idleLine(mood: Mood, todo: number, foodTotal: number, seed: number): st
 
 const PET_LINES = ["ごろごろ…", "にゃ〜ん", "そこ、きもちいいにゃ", "もっと なでてにゃ"];
 const EAT_LINES = ["もぐもぐ…おいしいにゃ！", "うまうま…", "しあわせの あじにゃ〜"];
-const JOY_LINES = ["やったにゃ！ ごほうびゲットにゃ！", "えらいにゃ〜！ さすがにゃ！", "がんばったにゃ！ ごはんが楽しみにゃ！"];
 const IDLE_LINES: Record<IdleAction, string> = { yawn: "ふあぁ〜…", groom: "ぺろぺろ…" };
 const WAKE_LINE = "…はっ、おはようにゃ";
 
@@ -116,14 +116,17 @@ export default function HomePage() {
   const notes = careNotes({ fullness, mood: moodValue, affection, fedToday, doneToday, todoCount, streak, foodTotal });
   const shown = filterTasks(todays, filter);
 
-  // 期限が過ぎたまま終わっていないタスクがあると、ねこは ご機嫌ななめ
-  const overdue = store.tasks.filter((t) => t.status === "todo" && t.dueDate && t.dueDate < today).length;
+  // 1日過ぎたら しょんぼり（哀）、2日以上で むすっ（怒）
+  const overdue = emotionWhileOverdue(
+    store.tasks.filter((t) => t.status === "todo").map((t) => t.dueDate),
+    today,
+  );
   const bubble =
     line ??
     (idleAction ? IDLE_LINES[idleAction] : sleeping ? "すや すや…" : null) ??
-    (overdue ? `期限が過ぎたタスクが${overdue}件あるにゃ…むすっ` : null) ??
+    (overdue ? overdueLine(overdue) : null) ??
     idleLine(mood, todo.length, foodTotal, new Date(store.now).getHours() + todo.length);
-  const face: CatFace = eating ? "eating" : (reaction ?? (petted ? "happy" : (idleAction ?? (sleeping ? "sleep" : overdue ? "grumpy" : mood))));
+  const face: CatFace = eating ? "eating" : (reaction ?? (petted ? "happy" : (idleAction ?? (sleeping ? "sleep" : overdue ? EMOTION_FACE[overdue.emotion] : mood))));
 
   // 画面のどこかを触ったら「起きている」扱いにする
   useEffect(() => {
@@ -207,18 +210,24 @@ export default function HomePage() {
     }
   }, [say, react, later]);
 
-  // タスクを終えてごほうびをもらったら、大よろこび
-  const lastReward = store.events.reduce((m, e) => (e.type === "reward" && e.at > m ? e.at : m), 0);
-  const seenReward = useRef(lastReward);
+  // タスクを終えたら、期限との関係で喜怒哀楽を見せる（早い＝喜、ちょうど＝楽、遅れた＝哀）
+  const lastDone = store.tasks.reduce<{ at: number; dueDate: string | null } | null>(
+    (m, t) => (t.status === "done" && t.completedAt !== null && (!m || t.completedAt > m.at) ? { at: t.completedAt, dueDate: t.dueDate } : m),
+    null,
+  );
+  const lastDoneAt = lastDone?.at ?? 0;
+  const lastDoneDue = lastDone?.dueDate ?? null;
+  const seenDone = useRef(lastDoneAt);
   useEffect(() => {
-    if (lastReward > seenReward.current) {
+    if (lastDoneAt > seenDone.current) {
+      const emotion = emotionOnComplete(lastDoneDue, toDateKey(lastDoneAt));
       setSleeping(false);
       setIdleAction(null);
-      react("joy", 2600);
-      say(JOY_LINES[Math.floor(lastReward / 1000) % JOY_LINES.length]!, 2600);
+      react(EMOTION_FACE[emotion], 2800);
+      say(completeLine(emotion, Math.floor(lastDoneAt / 1000)), 2800);
     }
-    seenReward.current = lastReward;
-  }, [lastReward, react, say]);
+    seenDone.current = lastDoneAt;
+  }, [lastDoneAt, lastDoneDue, react, say]);
 
   const onFeed = useCallback(
     async (foodId: FoodId) => {
