@@ -33,7 +33,7 @@ export default function SettingsPage() {
       setPermission(p);
       await store.setNotify({ ...notify, enabled });
       if (enabled) {
-        toast.show(p === "granted" ? "期限の通知をオンにしました" : "アプリを開いているときに、画面の中でお知らせします", "success");
+        toast.show(p === "granted" ? "ねこからの通知をオンにしました" : "アプリを開いているときに、画面の中でお知らせします", "success");
       }
     } catch (err) {
       toast.show(toMessage(err), "error");
@@ -138,9 +138,10 @@ export default function SettingsPage() {
 
       <section className="card" aria-labelledby="notify-title">
         <h2 className="card__title" id="notify-title">
-          期限の通知
+          ねこからの通知
         </h2>
         <p className="muted">期限の前日と当日に、設定した時刻を過ぎたら1回ずつお知らせします。</p>
+        <p className="muted">アプリをまる1日開かなかったときも、ねこが「待ってるにゃ」と呼びにきます（アプリを閉じていても届く設定のとき）。</p>
         <div className="notify">
           <label className="switch">
             <input type="checkbox" role="switch" checked={notify.enabled} onChange={(e) => onToggleNotify(e.target.checked)} data-testid="notify-toggle" />

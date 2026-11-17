@@ -72,9 +72,9 @@ function b64urlToBytes(s: string): Uint8Array<ArrayBuffer> {
   return out;
 }
 
-/** サーバーに送るタスク：未完了で、期限が昨日〜2週間後のもの（最大50件） */
+/** サーバーに送るタスク：未完了で、期限が2日前〜2週間後のもの（最大50件） */
 export function pushItems(tasks: Task[], showTitles: boolean, now: number) {
-  const from = toDateKey(now - 86_400_000);
+  const from = toDateKey(now - 2 * 86_400_000);
   const to = toDateKey(now + 14 * 86_400_000);
   return tasks
     .filter((t) => t.status === "todo" && t.dueDate && t.dueDate >= from && t.dueDate <= to)
@@ -141,6 +141,8 @@ export async function syncPush(game: GameState, tasks: Task[], now = Date.now())
       hour: game.notify.hour,
       catName: game.cat.name,
       items: pushItems(tasks, game.notify.showTitles, now),
+      // アプリを開いた日。しばらく開かなかったときに、ねこが呼ぶために使う
+      lastOpen: toDateKey(now),
     };
     // 前回と同じ内容なら送らない（日付が変わったら送り直す）
     const signature = JSON.stringify({ ...body, day: toDateKey(now) });

@@ -2,6 +2,7 @@
  * プッシュ通知のサーバー側ロジック（純粋関数）。
  * 端末から送られてくる情報の検査と、「いま、どの通知を送るか」の判定を行う。
  */
+import { comebackMessage, comebackStep, daysBetween } from "@/lib/comeback";
 import { formatReminder } from "@/lib/reminders";
 
 /** 送信先として受け付けるプッシュサービス（端末が教えてくる URL を、そのまま信用しない） */
@@ -34,11 +35,13 @@ export interface DeviceInput {
   hour: number;
   catName: string;
   items: PushItem[];
+  /** 最後にアプリを開いた日（端末のタイムゾーンでの YYYY-MM-DD）。古い版の端末からは届かないので null */
+  lastOpen: string | null;
 }
 
 export interface DeviceRecord extends Omit<DeviceInput, "secret"> {
   secretHash: string;
-  /** 送信済みの通知（`タスクID:期限:today|tomorrow`） */
+  /** 送信済みの通知（`タスクID:期限:today|tomorrow`、呼びかけは `comeback:最後に開いた日:段階`） */
   sent: string[];
   updatedAt: number;
 }
@@ -56,6 +59,14 @@ export function isAllowedEndpoint(endpoint: string): boolean {
     return false;
   }
   return url.protocol === "https:" && !url.port && !url.username && PUSH_HOSTS.some((re) => re.test(url.hostname));
+}
+
+/** 実在する日付か（2026-13-40 などを弾く） */
+function isRealDate(s: string): boolean {
+  if (!DATE_RE.test(s)) return false;
+  const [y, m, d] = s.split("-").map(Number) as [number, number, number];
+  const t = new Date(Date.UTC(y, m - 1, d));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d;
 }
 
 export function isValidTimeZone(tz: string): boolean {
@@ -90,7 +101,12 @@ export function parseDeviceInput(raw: unknown): DeviceInput {
     const t = typeof it.t === "string" ? it.t.replace(/[\u0000-\u001F\u007F‪-‮⁦-⁩]/g, "").slice(0, MAX_TITLE) : "";
     return { k: it.k, t, d: it.d };
   });
-  return { id: raw.id, secret: raw.secret, subscription: { endpoint: sub.endpoint, keys: { p256dh, auth } }, timeZone: raw.timeZone, hour, catName, items };
+  let lastOpen: string | null = null;
+  if (raw.lastOpen !== undefined && raw.lastOpen !== null) {
+    if (typeof raw.lastOpen !== "string" || !isRealDate(raw.lastOpen)) return bad("最後に開いた日が正しくありません");
+    lastOpen = raw.lastOpen;
+  }
+  return { id: raw.id, secret: raw.secret, subscription: { endpoint: sub.endpoint, keys: { p256dh, auth } }, timeZone: raw.timeZone, hour, catName, items, lastOpen };
 }
 
 /** タイムゾーンでの「今日」「明日」の日付と、いまの時（0〜23） */
@@ -113,6 +129,10 @@ export interface PushPlan {
   title: string;
   body: string;
   tag: string;
+  /** 通知をタップしたときに開く画面 */
+  url: string;
+  /** 通知にそえるねこの画像（対応している端末だけ） */
+  image: string;
 }
 
 /**
@@ -120,29 +140,53 @@ export interface PushPlan {
  * - hourly（1時間ごとの呼び出し）：端末で設定した時刻を過ぎていれば送る
  * - daily（1日1回の呼び出し）：時刻に関係なく送る（無料プランの1日1回の定期実行用）
  */
-export function planPush(device: Pick<DeviceRecord, "items" | "sent" | "timeZone" | "hour" | "catName">, now: number, mode: "hourly" | "daily"): PushPlan | null {
+export function planPush(device: Pick<DeviceRecord, "items" | "sent" | "timeZone" | "hour" | "catName" | "lastOpen">, now: number, mode: "hourly" | "daily"): PushPlan | null {
   const { today, tomorrow, hour } = localClock(now, device.timeZone);
   if (mode === "hourly" && hour < device.hour) return null;
   const sent = new Set(device.sent);
+  // 期限を過ぎて、まだ終わっていないもの。翌日（哀）と2日後（怒）に1回ずつ知らせる
+  const yesterday = localClock(now - 86_400_000, device.timeZone).today;
+  const twoDaysAgo = localClock(now - 2 * 86_400_000, device.timeZone).today;
+  const late1Items: PushItem[] = [];
+  const late2Items: PushItem[] = [];
   const todayItems: PushItem[] = [];
   const tomorrowItems: PushItem[] = [];
   const keys: string[] = [];
   for (const it of device.items) {
-    const kind = it.d === today ? "today" : it.d === tomorrow ? "tomorrow" : null;
+    const kind = it.d === today ? "today" : it.d === tomorrow ? "tomorrow" : it.d === yesterday ? "late1" : it.d === twoDaysAgo ? "late2" : null;
     if (!kind) continue;
     const key = `${it.k}:${it.d}:${kind}`;
     if (sent.has(key)) continue;
     keys.push(key);
-    (kind === "today" ? todayItems : tomorrowItems).push(it);
+    ({ today: todayItems, tomorrow: tomorrowItems, late1: late1Items, late2: late2Items })[kind].push(it);
+  }
+  // しばらく開いていなければ、ねこが呼ぶ（期限の通知とまとめて1通にする）
+  const step = device.lastOpen ? comebackStep(device.lastOpen, today) : null;
+  const comebackKey = step && device.lastOpen ? `comeback:${device.lastOpen}:${step}` : null;
+  if (comebackKey && !sent.has(comebackKey)) {
+    const away = daysBetween(device.lastOpen!, today) ?? step!;
+    const { title, body, image } = comebackMessage(device.catName, away, { overdue: late1Items.length + late2Items.length, today: todayItems.length, tomorrow: tomorrowItems.length });
+    return { keys: [...keys, comebackKey], title, body, image, tag: `comeback-${today}`, url: "/" };
   }
   if (keys.length === 0) return null;
-  const showTitles = [...todayItems, ...tomorrowItems].every((it) => it.t);
-  const { title, body } = formatReminder(todayItems.map((i) => i.t), tomorrowItems.map((i) => i.t), device.catName, showTitles);
-  return { keys, title, body, tag: `due-${today}` };
+  const showTitles = [...late1Items, ...late2Items, ...todayItems, ...tomorrowItems].every((it) => it.t);
+  const t = (list: PushItem[]) => list.map((i) => i.t);
+  const { title, body, image } = formatReminder(t(todayItems), t(tomorrowItems), device.catName, showTitles, t(late1Items), t(late2Items));
+  return { keys, title, body, image, tag: `due-${today}`, url: "/tasks" };
 }
 
-/** 送信済みの記録から、昨日より前の分を捨てる（記録が増え続けないように） */
-export function pruneSent(sent: string[], now: number, timeZone: string): string[] {
-  const { today } = localClock(now - 86_400_000, timeZone);
-  return sent.filter((k) => (k.split(":")[1] ?? "") >= today).slice(-200);
+/**
+ * 送信済みの記録から、いらなくなった分を捨てる（記録が増え続けないように）。
+ * 期限の通知は2日より前の分、呼びかけは「最後に開いた日」が変わった（＝アプリを開いた）分を捨てる。
+ */
+export function pruneSent(sent: string[], now: number, timeZone: string, lastOpen: string | null): string[] {
+  // 期限の2日後まで知らせるので、2日前までの記録は残す
+  const { today } = localClock(now - 2 * 86_400_000, timeZone);
+  return sent
+    .filter((k) => {
+      const [kind, date] = k.split(":");
+      if (kind === "comeback") return date === lastOpen;
+      return (date ?? "") >= today;
+    })
+    .slice(-200);
 }
