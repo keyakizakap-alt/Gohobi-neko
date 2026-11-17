@@ -34,6 +34,7 @@ export interface Store extends Snapshot {
   addTask(input: TaskInput): Promise<Task>;
   addTasks(inputs: TaskInput[]): Promise<Task[]>;
   setNotify(notify: GameState["notify"]): Promise<void>;
+  setRoom(room: GameState["room"]): Promise<void>;
   markNotified(keys: string[]): Promise<void>;
   editTask(id: string, input: TaskInput): Promise<Task>;
   removeTask(id: string): Promise<void>;
@@ -174,6 +175,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       async setNotify(notify) {
         const game = await repo.setNotify(need(), notify);
+        setSnap((s) => ({ ...s, game }));
+        changed();
+      },
+      async setRoom(room) {
+        const game = await repo.setRoom(need(), room);
         setSnap((s) => ({ ...s, game }));
         changed();
       },

@@ -3,6 +3,8 @@
 import { Cat } from "./Cat";
 import { Modal } from "./Modal";
 import { STAGES } from "@/lib/game";
+import { unlockedBetween } from "@/lib/room";
+import Link from "next/link";
 import type { FeedOutcome } from "@/lib/types";
 
 const CONFETTI = Array.from({ length: 18 }, (_, i) => i);
@@ -11,6 +13,7 @@ const SPARKS = Array.from({ length: 12 }, (_, i) => i);
 export function LevelUpDialog({ outcome, name, onClose }: { outcome: FeedOutcome | null; name: string; onClose(): void }) {
   const evolved = outcome ? outcome.stageAfter !== outcome.stageBefore : false;
   const stage = outcome ? STAGES.find((s) => s.id === outcome.stageAfter) : undefined;
+  const unlocked = outcome ? unlockedBetween(outcome.levelBefore, outcome.levelAfter) : [];
   return (
     <Modal open={outcome !== null} onClose={onClose} title={evolved ? "おおきくなった！" : "レベルアップ！"} variant="celebrate">
       {outcome && stage && (
@@ -57,6 +60,19 @@ export function LevelUpDialog({ outcome, name, onClose }: { outcome: FeedOutcome
             </p>
           ) : (
             <p className="levelup__text">{name}は ごはんを食べて、すくすく育っています。</p>
+          )}
+          {unlocked.length > 0 && (
+            <div className="levelup__unlock" data-testid="levelup-unlock">
+              <p className="levelup__unlock-title">🎁 もようがえアイテムが増えました</p>
+              <ul>
+                {unlocked.map((n) => (
+                  <li key={n}>{n}</li>
+                ))}
+              </ul>
+              <Link href="/room" className="levelup__unlock-link" onClick={onClose}>
+                さっそく もようがえする ›
+              </Link>
+            </div>
           )}
           <button type="button" className="btn btn--primary btn--block" onClick={onClose}>
             やったね
