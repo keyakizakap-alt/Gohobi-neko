@@ -57,3 +57,36 @@ test("せっていからも、もようがえを開ける", async ({ page }) => 
   await expect(page).toHaveURL(/\/room$/);
   await expect(page.getByRole("heading", { name: "もようがえ" })).toBeVisible();
 });
+
+test("表情：期限切れがあると ご機嫌ななめ、終えると元に戻る", async ({ page }) => {
+  await start(page);
+  const d = new Date(Date.now() - 2 * 86_400_000);
+  const past = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  await page.getByRole("button", { name: /追加/ }).first().click();
+  const dialog = page.getByRole("dialog");
+  await dialog.locator('input[name="title"]').fill("出しわすれた書類");
+  await dialog.locator('input[name="dueDate"]').fill(past);
+  await dialog.getByRole("button", { name: "追加する" }).click();
+  await expect(dialog).toBeHidden();
+
+  await page.goto("/");
+  await expect(page.locator(".room .cat--grumpy")).toBeVisible();
+  await expect(page.getByText("期限が過ぎたタスクが1件あるにゃ…むすっ")).toBeVisible();
+
+  await page.goto("/tasks");
+  await page.getByRole("button", { name: "「出しわすれた書類」を完了にする" }).click();
+  await expect(page.locator(".task--done")).toHaveCount(1);
+  await page.goto("/");
+  await expect(page.locator(".room .cat--grumpy")).toHaveCount(0);
+});
+
+test("表情：ホームでタスクを終えると、ねこが大よろこびする", async ({ page }) => {
+  await start(page);
+  await page.getByRole("button", { name: /追加/ }).first().click();
+  const dialog = page.getByRole("dialog");
+  await dialog.locator('input[name="title"]').fill("洗濯物をたたむ");
+  await dialog.getByRole("button", { name: "追加する" }).click();
+  await expect(dialog).toBeHidden();
+  await page.getByRole("button", { name: "「洗濯物をたたむ」を完了にする" }).click();
+  await expect(page.locator(".room .cat--joy")).toBeVisible();
+});

@@ -91,24 +91,26 @@ describe("しばらく開いていない人を、ねこが呼ぶ", () => {
   });
   it("まる1日開かなかった翌朝に呼び、ホームを開く", () => {
     const p = planPush({ ...base, lastOpen: "2026-11-14" }, NOW, "daily")!;
-    expect(p.title).toBe("たまが おなかを空かせて待ってるにゃ");
+    expect(p.title).toBe("たまが しょんぼりしてるにゃ…");
     expect(p.body).toContain("きのうは会えなかった");
     expect(p.url).toBe("/");
+    expect(p.image).toBe("/notify/lonely.jpg");
     expect(p.keys).toEqual(["comeback:2026-11-14:2"]);
     // 同じ段階では2回呼ばない
     expect(planPush({ ...base, lastOpen: "2026-11-14", sent: p.keys }, NOW + 86_400_000, "daily")).toBeNull();
   });
   it("5日目にもう一度だけ呼び、それ以降は呼ばない", () => {
     const p = planPush({ ...base, lastOpen: "2026-11-11", sent: ["comeback:2026-11-11:2"] }, NOW, "daily")!;
-    expect(p.title).toBe("たまが さみしそうに待ってるにゃ…");
+    expect(p.title).toBe("たまが すねちゃったにゃ");
     expect(p.body).toContain("4日も会えてない");
+    expect(p.image).toBe("/notify/grumpy.jpg");
     const sent = ["comeback:2026-11-11:2", "comeback:2026-11-11:5"];
     expect(planPush({ ...base, lastOpen: "2026-11-11", sent }, NOW + 5 * 86_400_000, "daily")).toBeNull();
   });
   it("期限の通知とまとめて1通にする", () => {
     const dev = { ...parseDeviceInput(input()), sent: [] as string[], lastOpen: "2026-11-14" };
     const p = planPush(dev, NOW, "daily")!;
-    expect(p.title).toContain("待ってるにゃ");
+    expect(p.title).toBe("たまが しょんぼりしてるにゃ…");
     expect(p.body).toContain("今日までのタスクが1件");
     expect(p.keys).toEqual(["a:2026-11-16:today", "b:2026-11-17:tomorrow", "comeback:2026-11-14:2"]);
   });
@@ -120,6 +122,27 @@ describe("しばらく開いていない人を、ねこが呼ぶ", () => {
     const sent = ["comeback:2026-11-14:2", "a:2026-11-16:today"];
     expect(pruneSent(sent, NOW, "Asia/Tokyo", "2026-11-14")).toEqual(sent);
     expect(pruneSent(sent, NOW, "Asia/Tokyo", "2026-11-16")).toEqual(["a:2026-11-16:today"]);
+  });
+  it("期限の翌日に1回だけ、ご機嫌ななめで知らせる（期限切れのタスク）", () => {
+    const dev = { ...parseDeviceInput(input({ items: [{ k: "x", t: "請求書を送る", d: "2026-11-15" }, { k: "a", t: "今日の提出", d: "2026-11-16" }] })), sent: [] as string[], lastOpen: "2026-11-16" };
+    const p = planPush(dev, NOW, "daily")!;
+    expect(p.title).toBe("たまが ご機嫌ななめにゃ");
+    expect(p.body).toContain("期限切れ：「請求書を送る」");
+    expect(p.body).toContain("今日まで：「今日の提出」");
+    expect(p.image).toBe("/notify/grumpy.jpg");
+    expect(p.keys).toEqual(["x:2026-11-15:overdue", "a:2026-11-16:today"]);
+    expect(planPush({ ...dev, sent: p.keys }, NOW + 3_600_000, "daily")).toBeNull();
+    // 2日以上前に過ぎたものは、もう知らせない
+    expect(planPush({ ...dev, items: [{ k: "y", t: "古い", d: "2026-11-14" }] }, NOW, "daily")).toBeNull();
+    // タスク名を出さない設定なら、件数だけ
+    const hidden = planPush({ ...dev, items: dev.items.map((i) => ({ ...i, t: "" })) }, NOW, "daily")!;
+    expect(hidden.body).toContain("期限が過ぎたタスクが1件");
+    expect(hidden.body).not.toContain("「");
+  });
+  it("今日・明日の期限だけなら、にっこり応援する", () => {
+    const p = planPush({ ...parseDeviceInput(input()), sent: [] as string[] }, NOW, "daily")!;
+    expect(p.image).toBe("/notify/welcome.jpg");
+    expect(p.body).toContain("たまが応援してるにゃ");
   });
   it("最後に開いた日の形式を検査する（古い端末は送ってこなくてもよい）", () => {
     expect(parseDeviceInput(input()).lastOpen).toBeNull();
@@ -187,13 +210,13 @@ describe("API", () => {
 
   it("定期実行：しばらく開いていない端末にはホームを開く呼びかけを送り、開いたらまた呼べるようになる", async () => {
     await handlePutDevice(req("PUT", input({ id: "dev-3", items: [], lastOpen: "2026-11-14" })), NOW - 86_400_000);
-    const payloads: { title: string; url: string }[] = [];
+    const payloads: { title: string; url: string; image?: string }[] = [];
     const sender: Sender = async (_sub, payload) => {
       payloads.push(JSON.parse(payload));
       return { statusCode: 201 };
     };
     await handleCron(cronReq(), "daily", NOW, sender);
-    expect(payloads.find((p) => p.title.includes("待ってる"))).toMatchObject({ url: "/" });
+    expect(payloads.find((p) => p.title.includes("しょんぼり"))).toMatchObject({ url: "/", image: "/notify/lonely.jpg" });
     const n = payloads.length;
     await handleCron(cronReq(), "daily", NOW + 3_600_000, sender);
     expect(payloads.length).toBe(n);

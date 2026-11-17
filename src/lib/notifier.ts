@@ -30,9 +30,10 @@ export async function requestNotifyPermission(): Promise<NotifyPermission> {
 }
 
 /** 通知を出す。出せたら true */
-export async function showNotification(title: string, body: string, tag: string): Promise<boolean> {
+export async function showNotification(title: string, body: string, tag: string, image?: string): Promise<boolean> {
   if (notifyPermission() !== "granted") return false;
-  const options: NotificationOptions = { body, tag, icon: "/icons/icon-192.png", badge: "/icons/icon-192.png", data: { url: "/tasks" } };
+  // image は TypeScript の型定義にないが、Chrome・Edge・Android では表示される（他のブラウザは無視する）
+  const options: NotificationOptions & { image?: string } = { body, tag, image, icon: "/icons/icon-192.png", badge: "/icons/icon-192.png", data: { url: "/tasks" } };
   const reg = await registerServiceWorker();
   try {
     if (reg) {

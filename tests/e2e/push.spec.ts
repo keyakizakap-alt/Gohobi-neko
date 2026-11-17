@@ -83,7 +83,7 @@ test("プッシュ通知：登録すると、サーバーの定期実行から1�
   await addDueToday(page, "名前を出さないタスク");
   await page.waitForTimeout(2500); // 同期は1.5秒待ってから送る
   const third = await (await request.get("/api/push/daily", { headers: CRON })).json();
-  const hidden = third.preview.find((p: { body: string }) => p.body.includes("たまにごはん"));
+  const hidden = third.preview.find((p: { body: string }) => p.body.includes("たまが応援してるにゃ"));
   expect(hidden).toBeTruthy();
   expect(third.preview.some((p: { body: string }) => p.body.includes("名前を出さないタスク"))).toBe(false);
 
@@ -121,12 +121,12 @@ test("しばらく開かないと、ねこが呼ぶ通知が届き、開くと�
   await expect(page.getByTestId("push-status")).toContainText("アプリを閉じていても届きます");
 
   const res = await (await request.get("/api/push/daily", { headers: CRON })).json();
-  const call = res.preview.find((p: { title: string }) => p.title === "たまが おなかを空かせて待ってるにゃ");
+  const call = res.preview.find((p: { title: string }) => p.title === "たまが しょんぼりしてるにゃ…");
   expect(call).toBeTruthy();
   expect(call.body).toContain("ごはんをちょうだい");
   // 同じ呼びかけは2回送らない
   const again = await (await request.get("/api/push/daily", { headers: CRON })).json();
-  expect(again.preview.some((p: { title: string }) => p.title.includes("待ってるにゃ"))).toBe(false);
+  expect(again.preview.some((p: { title: string }) => p.title.includes("しょんぼり"))).toBe(false);
 });
 
 test("久しぶりに開くと、ねこが「おかえり」と迎える（前日に開いていれば言わない）", async ({ page }) => {
@@ -143,4 +143,13 @@ test("久しぶりに開くと、ねこが「おかえり」と迎える（前�
   await page.evaluate((v) => localStorage.setItem("gohobi-neko:last-open", v), daysAgo(3));
   await page.reload();
   await expect(page.getByText("おかえりにゃ！ 待ってたにゃ〜")).toBeVisible();
+  await expect(page.locator(".room .cat--welcome")).toBeVisible();
+
+  // 5日以上あいたら、まず しょんぼりしてから、にっこり迎える
+  await page.evaluate((v) => localStorage.setItem("gohobi-neko:last-open", v), daysAgo(6));
+  await page.reload();
+  await expect(page.getByText("…やっと来てくれたにゃ")).toBeVisible();
+  await expect(page.locator(".room .cat--lonely")).toBeVisible();
+  await expect(page.getByText("おかえりにゃ！ 6日ぶり…ずっと待ってたにゃ")).toBeVisible({ timeout: 6000 });
+  await expect(page.locator(".room .cat--welcome")).toBeVisible();
 });

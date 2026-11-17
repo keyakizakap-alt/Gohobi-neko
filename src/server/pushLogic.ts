@@ -131,6 +131,8 @@ export interface PushPlan {
   tag: string;
   /** 通知をタップしたときに開く画面 */
   url: string;
+  /** 通知にそえるねこの画像（対応している端末だけ） */
+  image: string;
 }
 
 /**
@@ -142,29 +144,33 @@ export function planPush(device: Pick<DeviceRecord, "items" | "sent" | "timeZone
   const { today, tomorrow, hour } = localClock(now, device.timeZone);
   if (mode === "hourly" && hour < device.hour) return null;
   const sent = new Set(device.sent);
+  // 昨日が期限で、まだ終わっていないもの（期限の翌日に1回だけ知らせる）
+  const yesterday = localClock(now - 86_400_000, device.timeZone).today;
+  const overdueItems: PushItem[] = [];
   const todayItems: PushItem[] = [];
   const tomorrowItems: PushItem[] = [];
   const keys: string[] = [];
   for (const it of device.items) {
-    const kind = it.d === today ? "today" : it.d === tomorrow ? "tomorrow" : null;
+    const kind = it.d === today ? "today" : it.d === tomorrow ? "tomorrow" : it.d === yesterday ? "overdue" : null;
     if (!kind) continue;
     const key = `${it.k}:${it.d}:${kind}`;
     if (sent.has(key)) continue;
     keys.push(key);
-    (kind === "today" ? todayItems : tomorrowItems).push(it);
+    (kind === "today" ? todayItems : kind === "tomorrow" ? tomorrowItems : overdueItems).push(it);
   }
   // しばらく開いていなければ、ねこが呼ぶ（期限の通知とまとめて1通にする）
   const step = device.lastOpen ? comebackStep(device.lastOpen, today) : null;
   const comebackKey = step && device.lastOpen ? `comeback:${device.lastOpen}:${step}` : null;
   if (comebackKey && !sent.has(comebackKey)) {
     const away = daysBetween(device.lastOpen!, today) ?? step!;
-    const { title, body } = comebackMessage(device.catName, away, { today: todayItems.length, tomorrow: tomorrowItems.length });
-    return { keys: [...keys, comebackKey], title, body, tag: `comeback-${today}`, url: "/" };
+    const { title, body, image } = comebackMessage(device.catName, away, { overdue: overdueItems.length, today: todayItems.length, tomorrow: tomorrowItems.length });
+    return { keys: [...keys, comebackKey], title, body, image, tag: `comeback-${today}`, url: "/" };
   }
   if (keys.length === 0) return null;
-  const showTitles = [...todayItems, ...tomorrowItems].every((it) => it.t);
-  const { title, body } = formatReminder(todayItems.map((i) => i.t), tomorrowItems.map((i) => i.t), device.catName, showTitles);
-  return { keys, title, body, tag: `due-${today}`, url: "/tasks" };
+  const showTitles = [...overdueItems, ...todayItems, ...tomorrowItems].every((it) => it.t);
+  const t = (list: PushItem[]) => list.map((i) => i.t);
+  const { title, body, image } = formatReminder(t(todayItems), t(tomorrowItems), device.catName, showTitles, t(overdueItems));
+  return { keys, title, body, image, tag: `due-${today}`, url: "/tasks" };
 }
 
 /**

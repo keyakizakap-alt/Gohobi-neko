@@ -26,15 +26,28 @@ export function comebackStep(lastOpen: string, today: string): number | null {
   return step;
 }
 
-/** 呼びかけの通知の文面。期限の近いタスクがあれば、その件数もそえる */
-export function comebackMessage(catName: string, away: number, due: { today: number; tomorrow: number }): { title: string; body: string } {
-  const title = away >= 5 ? `${catName}が さみしそうに待ってるにゃ…` : `${catName}が おなかを空かせて待ってるにゃ`;
+/**
+ * 呼びかけの通知の文面と、通知にそえるねこの画像（対応している端末だけに表示される）。
+ * 2日目はしょんぼり、5日目はすねている。期限の近いタスクがあれば、その件数もそえる。
+ */
+export function comebackMessage(catName: string, away: number, due: { overdue?: number; today: number; tomorrow: number }): { title: string; body: string; image: string } {
+  const lonely = away < 5;
+  const title = lonely ? `${catName}が しょんぼりしてるにゃ…` : `${catName}が すねちゃったにゃ`;
   const lines: string[] = [];
-  if (due.today) lines.push(`今日までのタスクが${due.today}件あるにゃ`);
+  if (due.overdue) lines.push(`期限が過ぎたタスクが${due.overdue}件あるにゃ`);
+  else if (due.today) lines.push(`今日までのタスクが${due.today}件あるにゃ`);
   else if (due.tomorrow) lines.push(`明日までのタスクが${due.tomorrow}件あるにゃ`);
-  lines.push(away >= 5 ? `${away - 1}日も会えてないにゃ。かんたんなタスク1つからでいいにゃ` : "きのうは会えなかったにゃ。タスクを1つ終わらせて、ごはんをちょうだい");
-  return { title, body: lines.join("\n") };
+  lines.push(lonely ? "きのうは会えなかったにゃ。タスクを1つ終わらせて、ごはんをちょうだい" : `${away - 1}日も会えてないにゃ。かんたんなタスク1つで、きげんを直してほしいにゃ`);
+  return { title, body: lines.join("\n"), image: lonely ? NOTIFY_IMAGE.lonely : NOTIFY_IMAGE.grumpy };
 }
+
+/** 通知にそえるねこの画像（横長。Chrome・Edge・Android の通知で表示され、iPhone・Firefox では表示されない） */
+export const NOTIFY_IMAGE = {
+  welcome: "/notify/welcome.jpg",
+  lonely: "/notify/lonely.jpg",
+  grumpy: "/notify/grumpy.jpg",
+  joy: "/notify/joy.jpg",
+} as const;
 
 /** 久しぶりに開いたときの、ねこのひとこと。前に開いた日からまる1日以上あいていなければ null */
 export function welcomeBackLine(lastOpen: string | null, today: string): string | null {

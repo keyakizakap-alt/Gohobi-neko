@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import type { StageId } from "@/lib/types";
 
-export type CatFace = "normal" | "happy" | "hungry" | "eating" | "yawn" | "groom" | "sleep";
+export type CatFace = "normal" | "happy" | "hungry" | "eating" | "yawn" | "groom" | "sleep" | "joy" | "lonely" | "grumpy" | "welcome";
 
 interface Props {
   stage: StageId;
@@ -17,8 +17,9 @@ interface Props {
 /**
  * 表情ごとの写真（AI生成・背景切り抜き済み）。
  * ふつう・ごきげん・食べる・あくびは Canva、毛づくろい・眠る・おなかぺこぺこは Gemini で作成。
+ * 大よろこび・しょんぼり・むすっ・にっこり（おかえり）は、依頼者が用意した画像。
  */
-type Photo = "normal" | "happy" | "eating" | "yawn" | "groom" | "sleep" | "hungry";
+type Photo = "normal" | "happy" | "eating" | "yawn" | "groom" | "sleep" | "hungry" | "joy" | "lonely" | "grumpy" | "welcome";
 const PHOTO: Record<CatFace, Photo> = {
   normal: "normal",
   hungry: "hungry",
@@ -27,13 +28,17 @@ const PHOTO: Record<CatFace, Photo> = {
   sleep: "sleep",
   eating: "eating",
   yawn: "yawn",
+  joy: "joy",
+  lonely: "lonely",
+  grumpy: "grumpy",
+  welcome: "welcome",
 };
 
 /**
  * 写真上の位置（画像の幅・高さに対する%）。首輪は首、王冠は耳のあいだに置く。
  * 首が隠れる写真（食べる・眠る・毛づくろい）は首輪を出さない。
  */
-const ANCHOR: Record<Photo, { headX: number; headY: number; neckY: number | null; tilt?: number }> = {
+const ANCHOR: Record<Photo, { headX: number; headY: number; neckY: number | null; neckX?: number; tilt?: number }> = {
   normal: { headX: 50.7, headY: 10.6, neckY: 37 },
   happy: { headX: 51.1, headY: 11.1, neckY: 36.6 },
   yawn: { headX: 50.7, headY: 10.9, neckY: 41.2 },
@@ -41,12 +46,16 @@ const ANCHOR: Record<Photo, { headX: number; headY: number; neckY: number | null
   eating: { headX: 51.4, headY: 59.5, neckY: null },
   groom: { headX: 55, headY: 12.5, neckY: null, tilt: 18 },
   sleep: { headX: 35.5, headY: 57, neckY: null },
+  joy: { headX: 48, headY: 11.5, neckY: 39.5, neckX: 54, tilt: -9 },
+  lonely: { headX: 50, headY: 12.5, neckY: 39 },
+  grumpy: { headX: 51, headY: 11.8, neckY: 37.5 },
+  welcome: { headX: 50.2, headY: 11.6, neckY: 38.5 },
 };
 
 /** 成長段階ごとの大きさ（足元を基準に縮める） */
 const SCALE: Record<StageId, number> = { kitten: 0.76, young: 0.86, adult: 0.94, master: 1 };
 
-export const CAT_PHOTOS = ["normal", "happy", "eating", "yawn", "groom", "sleep", "hungry"].map((p) => `/cat/${p}.webp`);
+export const CAT_PHOTOS = ["normal", "happy", "eating", "yawn", "groom", "sleep", "hungry", "joy", "lonely", "grumpy", "welcome"].map((p) => `/cat/${p}.webp`);
 
 export function Cat({ stage, face = "normal", animated = true, silhouette = false, className, title }: Props) {
   const photo = PHOTO[face];
@@ -67,7 +76,7 @@ export function Cat({ stage, face = "normal", animated = true, silhouette = fals
           // eslint-disable-next-line @next/next/no-img-element
           <img className="cat__photo cat__blink" src="/cat/happy.webp" alt="" width={480} height={720} decoding="async" draggable={false} />
         )}
-        {!silhouette && <Accessories stage={stage} headX={a.headX} headY={a.headY} neckY={a.neckY} tilt={a.tilt ?? 0} />}
+        {!silhouette && <Accessories stage={stage} headX={a.headX} headY={a.headY} neckX={a.neckX ?? a.headX} neckY={a.neckY} tilt={a.tilt ?? 0} />}
         {face === "sleep" && (
           <span className="cat__zzz" aria-hidden>
             <i>Z</i>
@@ -81,12 +90,12 @@ export function Cat({ stage, face = "normal", animated = true, silhouette = fals
 }
 
 /** 成長段階のしるし：わかねこ＝鈴つき首輪、おとなねこ＝リボン、ねこさま＝宝石の首輪＋王冠 */
-function Accessories({ stage, headX, headY, neckY, tilt }: { stage: StageId; headX: number; headY: number; neckY: number | null; tilt: number }) {
+function Accessories({ stage, headX, headY, neckX, neckY, tilt }: { stage: StageId; headX: number; headY: number; neckX: number; neckY: number | null; tilt: number }) {
   if (stage === "kitten") return null;
   return (
     <>
       {neckY !== null && (
-        <svg className="cat__collar" viewBox="0 0 200 70" style={{ left: `${headX}%`, top: `${neckY}%` }} aria-hidden>
+        <svg className="cat__collar" viewBox="0 0 200 70" style={{ left: `${neckX}%`, top: `${neckY}%` }} aria-hidden>
           <defs>
             <linearGradient id={`band-${stage}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stopColor={stage === "young" ? "#e2554b" : stage === "adult" ? "#3d9a8f" : "#8a5bb8"} />

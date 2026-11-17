@@ -777,7 +777,8 @@ fieldset:disabled .choice__item { opacity: 0.6; cursor: not-allowed; }
   .roomcard { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "scene" "pantry" "meters"; grid-template-rows: auto; row-gap: 14px; }
   .room { aspect-ratio: 16 / 10; }
   .room__cat { width: 27%; }
-  .room__bubble { max-width: 46%; }
+  /* 部屋が横長でねこが中央に小さく座るので、吹き出しは右上に寄せて顔にかからないようにする */
+  .room__bubble { top: 16%; max-width: 34%; }
   .lvcard { width: 164px; }
 }
 @media (min-width: 1500px) {
@@ -1533,3 +1534,14 @@ fieldset:disabled .choice__item { opacity: 0.6; cursor: not-allowed; }
   .deco__next { margin: 10px 12px 0; }
 }
 .settings__deco { margin-top: 12px; align-self: start; justify-self: start; }
+/* 表情に合わせた小さな動き */
+.cat--joy .cat__body { animation: c-joy-hop 0.9s ease-out 2; transform-origin: 50% 100%; }
+.cat--lonely .cat__body { transform: translateY(2%) scale(0.97); transform-origin: 50% 100%; transition: transform 0.6s ease; }
+@keyframes c-joy-hop {
+  0%, 100% { transform: translateY(0); }
+  35% { transform: translateY(-6%) scaleY(1.03); }
+  60% { transform: translateY(0) scaleY(0.98); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cat--joy .cat__body { animation: none; }
+}

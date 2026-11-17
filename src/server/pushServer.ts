@@ -168,7 +168,7 @@ export async function handleCron(req: Request, mode: "hourly" | "daily", now = D
     const plan = planPush(device, now, mode);
     if (!plan) continue;
     try {
-      await send(device.subscription, JSON.stringify({ title: plan.title, body: plan.body, tag: plan.tag, url: plan.url }));
+      await send(device.subscription, JSON.stringify({ title: plan.title, body: plan.body, tag: plan.tag, url: plan.url, image: plan.image }));
       if (process.env.PUSH_DRY_RUN === "1") preview.push({ title: plan.title, body: plan.body });
       device.sent = pruneSent([...device.sent, ...plan.keys], now, device.timeZone, device.lastOpen ?? null);
       await store.put(device);

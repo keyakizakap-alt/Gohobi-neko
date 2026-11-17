@@ -26,7 +26,8 @@ import {
   weekRecord,
   type Mood,
 } from "@/lib/game";
-import { welcomeBackLine } from "@/lib/comeback";
+import { daysBetween, welcomeBackLine } from "@/lib/comeback";
+import type { CatFace } from "@/components/Cat";
 import { ACTION_MS, nextIdleDelay, pickIdleAction, shouldSleep, type IdleAction } from "@/lib/behavior";
 import { toMessage, useStore } from "@/lib/store";
 import type { FeedOutcome, FoodId } from "@/lib/types";
@@ -46,6 +47,7 @@ function idleLine(mood: Mood, todo: number, foodTotal: number, seed: number): st
 
 const PET_LINES = ["ごろごろ…", "にゃ〜ん", "そこ、きもちいいにゃ", "もっと なでてにゃ"];
 const EAT_LINES = ["もぐもぐ…おいしいにゃ！", "うまうま…", "しあわせの あじにゃ〜"];
+const JOY_LINES = ["やったにゃ！ ごほうびゲットにゃ！", "えらいにゃ〜！ さすがにゃ！", "がんばったにゃ！ ごはんが楽しみにゃ！"];
 const IDLE_LINES: Record<IdleAction, string> = { yawn: "ふあぁ〜…", groom: "ぺろぺろ…" };
 const WAKE_LINE = "…はっ、おはようにゃ";
 
@@ -64,6 +66,8 @@ export default function HomePage() {
   const [sleeping, setSleeping] = useState(false);
   const lastActive = useRef(Date.now());
   const [line, setLine] = useState<string | null>(null);
+  /** できごとに応じた、しばらくのあいだの表情（大よろこび・しょんぼり・おかえり） */
+  const [reaction, setReaction] = useState<CatFace | null>(null);
   const [celebration, setCelebration] = useState<FeedOutcome | null>(null);
   const [adding, setAdding] = useState(false);
   const [filter, setFilter] = useState<TaskFilter>("all");
@@ -112,8 +116,14 @@ export default function HomePage() {
   const notes = careNotes({ fullness, mood: moodValue, affection, fedToday, doneToday, todoCount, streak, foodTotal });
   const shown = filterTasks(todays, filter);
 
-  const bubble = line ?? (idleAction ? IDLE_LINES[idleAction] : sleeping ? "すや すや…" : null) ?? idleLine(mood, todo.length, foodTotal, new Date(store.now).getHours() + todo.length);
-  const face = eating ? "eating" : petted ? "happy" : idleAction ?? (sleeping ? "sleep" : mood);
+  // 期限が過ぎたまま終わっていないタスクがあると、ねこは ご機嫌ななめ
+  const overdue = store.tasks.filter((t) => t.status === "todo" && t.dueDate && t.dueDate < today).length;
+  const bubble =
+    line ??
+    (idleAction ? IDLE_LINES[idleAction] : sleeping ? "すや すや…" : null) ??
+    (overdue ? `期限が過ぎたタスクが${overdue}件あるにゃ…むすっ` : null) ??
+    idleLine(mood, todo.length, foodTotal, new Date(store.now).getHours() + todo.length);
+  const face: CatFace = eating ? "eating" : (reaction ?? (petted ? "happy" : (idleAction ?? (sleeping ? "sleep" : overdue ? "grumpy" : mood))));
 
   // 画面のどこかを触ったら「起きている」扱いにする
   useEffect(() => {
@@ -161,7 +171,16 @@ export default function HomePage() {
     [later],
   );
 
+  const react = useCallback(
+    (f: CatFace, ms: number) => {
+      setReaction(f);
+      later(() => setReaction((cur) => (cur === f ? null : cur)), ms);
+    },
+    [later],
+  );
+
   // 久しぶりに開いたら、ねこが「おかえり」と迎える（前に開いた日は、この端末にだけ記録する）
+  // 5日以上あいていたら、まず しょんぼりしてから、にっこり迎える
   useEffect(() => {
     const KEY = "gohobi-neko:last-open";
     const todayKey = toDateKey(Date.now());
@@ -173,8 +192,33 @@ export default function HomePage() {
       return;
     }
     const text = welcomeBackLine(prev, todayKey);
-    if (text) say(text, 6000);
-  }, [say]);
+    if (!text) return;
+    const away = daysBetween(prev!, todayKey) ?? 0;
+    if (away >= 5) {
+      react("lonely", 2800);
+      say("…やっと来てくれたにゃ", 2800);
+      later(() => {
+        react("welcome", 4500);
+        say(text, 4500);
+      }, 2800);
+    } else {
+      react("welcome", 5000);
+      say(text, 5000);
+    }
+  }, [say, react, later]);
+
+  // タスクを終えてごほうびをもらったら、大よろこび
+  const lastReward = store.events.reduce((m, e) => (e.type === "reward" && e.at > m ? e.at : m), 0);
+  const seenReward = useRef(lastReward);
+  useEffect(() => {
+    if (lastReward > seenReward.current) {
+      setSleeping(false);
+      setIdleAction(null);
+      react("joy", 2600);
+      say(JOY_LINES[Math.floor(lastReward / 1000) % JOY_LINES.length]!, 2600);
+    }
+    seenReward.current = lastReward;
+  }, [lastReward, react, say]);
 
   const onFeed = useCallback(
     async (foodId: FoodId) => {
@@ -192,6 +236,7 @@ export default function HomePage() {
         say(EAT_LINES[r.state.cat.totalFeeds % EAT_LINES.length]!, EAT_MS + 600);
         later(() => {
           setEating(null);
+          react("joy", 1600);
           busy.current = false;
           if (r.outcome.levelAfter > r.outcome.levelBefore) setCelebration(r.outcome);
         }, EAT_MS);
@@ -200,7 +245,7 @@ export default function HomePage() {
         toast.show(toMessage(e), "error");
       }
     },
-    [store, toast, say, later],
+    [store, toast, say, later, react],
   );
 
   const onPet = useCallback(() => {
