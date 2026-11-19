@@ -20,8 +20,10 @@ export interface NekoDB extends DBSchema {
 
 export type Db = IDBPDatabase<NekoDB>;
 
-export function openNekoDb(name: string = DB_NAME): Promise<Db> {
+/** onLost：ブラウザが接続を一方的に切ったときに呼ばれる（iOS でアプリを裏に回したときなど） */
+export function openNekoDb(name: string = DB_NAME, onLost?: () => void): Promise<Db> {
   return openDB<NekoDB>(name, DB_VERSION, {
+    terminated: onLost,
     upgrade(db, oldVersion) {
       // バージョンごとに段階的に適用する（将来のマイグレーションはここに追記）
       if (oldVersion < 1) {
