@@ -14,6 +14,7 @@ import {
   type ReactNode,
 } from "react";
 import { openNekoDb, type Db } from "./db";
+import { createDbConnection, type DbConnection } from "./dbConnection";
 import { GameError } from "./game";
 import * as repo from "./repository";
 import type { ExportData, FoodId, GameEvent, GameState, Task, TaskInput } from "./types";
@@ -61,7 +62,7 @@ export function toMessage(e: unknown): string {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const dbRef = useRef<Db | null>(null);
+  const connRef = useRef<DbConnection | null>(null);
   /** 同じアプリを開いている別タブへ「データが変わった」と知らせる */
   const channelRef = useRef<BroadcastChannel | null>(null);
   const [snap, setSnap] = useState<Snapshot>({
@@ -85,16 +86,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    const conn = createDbConnection((onLost) => openNekoDb(undefined, onLost));
     (async () => {
       try {
         if (typeof indexedDB === "undefined") throw new Error("no-idb");
-        const db = await openNekoDb();
-        if (cancelled) {
-          db.close();
-          return;
-        }
-        dbRef.current = db;
-        await reload(db);
+        await conn.run(reload);
+        if (cancelled) return;
+        connRef.current = conn;
         // ブラウザによる自動削除を避けるためのお願い（対応ブラウザのみ・失敗しても続行）
         void navigator.storage?.persist?.().catch(() => undefined);
       } catch {
@@ -110,16 +108,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })();
     return () => {
       cancelled = true;
-      dbRef.current?.close();
-      dbRef.current = null;
+      conn.close();
+      if (connRef.current === conn) connRef.current = null;
     };
   }, [reload]);
 
   // 別タブでの変更や、タブに戻ってきたときに、IndexedDB から読み直して表示をそろえる
+  // （アプリを裏に回しているあいだに接続が切れていたら、ここでつなぎ直す）
   useEffect(() => {
     const refresh = () => {
-      const db = dbRef.current;
-      if (db) reload(db).catch(() => undefined);
+      connRef.current?.run(reload).catch(() => undefined);
     };
     const onVisible = () => {
       if (document.visibilityState === "visible") refresh();
@@ -131,8 +129,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       channelRef.current = channel;
     }
     document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pageshow", refresh);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", refresh);
       channel?.close();
       channelRef.current = null;
     };
@@ -144,9 +144,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const store = useMemo<Store>(() => {
-    const need = (): Db => {
-      if (!dbRef.current) throw new GameError("STORAGE", "データの準備ができていません");
-      return dbRef.current;
+    /** 保存・読み込みを行う。接続が切れていたら、つなぎ直して1回だけやり直す */
+    const withDb = <T,>(fn: (db: Db) => Promise<T>): Promise<T> => {
+      const conn = connRef.current;
+      if (!conn) return Promise.reject(new GameError("STORAGE", "データの準備ができていません"));
+      return conn.run(fn);
     };
     const changed = () => {
       try {
@@ -162,45 +164,45 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...snap,
       now,
       async addTask(input) {
-        const task = await repo.createTask(need(), input);
+        const task = await withDb((db) => repo.createTask(db, input));
         setSnap((s) => ({ ...s, tasks: [...s.tasks, task] }));
         changed();
         return task;
       },
       async addTasks(inputs) {
-        const added = await repo.createTasks(need(), inputs);
+        const added = await withDb((db) => repo.createTasks(db, inputs));
         setSnap((s) => ({ ...s, tasks: [...s.tasks, ...added] }));
         changed();
         return added;
       },
       async setNotify(notify) {
-        const game = await repo.setNotify(need(), notify);
+        const game = await withDb((db) => repo.setNotify(db, notify));
         setSnap((s) => ({ ...s, game }));
         changed();
       },
       async setRoom(room) {
-        const game = await repo.setRoom(need(), room);
+        const game = await withDb((db) => repo.setRoom(db, room));
         setSnap((s) => ({ ...s, game }));
         changed();
       },
       async markNotified(keys) {
-        const game = await repo.markNotified(need(), keys);
+        const game = await withDb((db) => repo.markNotified(db, keys));
         setSnap((s) => ({ ...s, game }));
         changed();
       },
       async editTask(id, input) {
-        const task = await repo.updateTask(need(), id, input);
+        const task = await withDb((db) => repo.updateTask(db, id, input));
         setSnap((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? task : t)) }));
         changed();
         return task;
       },
       async removeTask(id) {
-        await repo.deleteTask(need(), id);
+        await withDb((db) => repo.deleteTask(db, id));
         setSnap((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== id) }));
         changed();
       },
       async completeTask(id) {
-        const r = await repo.completeTask(need(), id);
+        const r = await withDb((db) => repo.completeTask(db, id));
         setSnap((s) => ({
           ...s,
           game: r.state,
@@ -211,41 +213,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return r;
       },
       async reopenTask(id) {
-        const task = await repo.reopenTask(need(), id);
+        const task = await withDb((db) => repo.reopenTask(db, id));
         setSnap((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? task : t)) }));
         changed();
         return task;
       },
       async feed(foodId) {
-        const r = await repo.feedCat(need(), foodId);
+        const r = await withDb((db) => repo.feedCat(db, foodId));
         setNow(Date.now());
         setSnap((s) => ({ ...s, game: r.state, events: pushEvents(s.events, r.events) }));
         changed();
         return r;
       },
       async pet() {
-        const game = await repo.petCat(need());
+        const game = await withDb((db) => repo.petCat(db));
         setSnap((s) => ({ ...s, game }));
         changed();
       },
       async renameCat(name) {
-        const game = await repo.renameCat(need(), name);
+        const game = await withDb((db) => repo.renameCat(db, name));
         setSnap((s) => ({ ...s, game }));
         changed();
       },
       exportData() {
-        return repo.exportAll(need());
+        return withDb((db) => repo.exportAll(db));
       },
       async importData(raw) {
-        const db = need();
-        await repo.importAll(db, raw);
-        await reload(db);
+        await withDb((db) => repo.importAll(db, raw));
+        await withDb(reload);
         changed();
       },
       async resetAll() {
-        const db = need();
-        await repo.resetAll(db);
-        await reload(db);
+        await withDb((db) => repo.resetAll(db));
+        await withDb(reload);
         changed();
       },
     };

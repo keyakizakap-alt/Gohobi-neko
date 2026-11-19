@@ -245,3 +245,42 @@ test("小さいスマホ（幅320px）でも、どの画面も横にはみ出さ
   }
   await ctx.close();
 });
+
+test("iPhone で裏に回したあと IndexedDB の接続が切れても、タスクを追加し続けられる", async ({ page }) => {
+  await page.goto("/");
+  await page.locator('input[name="catName"]').fill("たま");
+  await page.getByRole("button", { name: "いっしょに はじめる" }).click();
+  await expect(page.getByTestId("cat-name")).toHaveText("たま");
+  const add = async (title: string) => {
+    await page.getByRole("button", { name: /追加/ }).first().click();
+    const dialog = page.getByRole("dialog");
+    await dialog.locator('input[name="title"]').fill(title);
+    await dialog.getByRole("button", { name: "追加する" }).click();
+    await expect(dialog).toBeHidden();
+  };
+  await add("1件目");
+  await add("2件目");
+  // Safari の不具合を再現：いまの接続は以後ずっと「サーバーとの接続が失われた」で失敗する
+  await page.evaluate(() => {
+    const dead = new WeakSet<IDBDatabase>();
+    const orig = IDBDatabase.prototype.transaction;
+    const opened: IDBDatabase[] = [];
+    const origOpen = indexedDB.open.bind(indexedDB);
+    // ここまでに開いている接続を「切れた」ことにする
+    IDBDatabase.prototype.transaction = function (this: IDBDatabase, ...args: Parameters<IDBDatabase["transaction"]>) {
+      if (!opened.includes(this) && !dead.has(this)) dead.add(this);
+      if (dead.has(this)) throw new DOMException("Connection to Indexed Database server lost. Refresh the page to try again", "UnknownError");
+      return orig.apply(this, args);
+    };
+    indexedDB.open = (...args: Parameters<IDBFactory["open"]>) => {
+      const req = origOpen(...args);
+      req.addEventListener("success", () => opened.push(req.result));
+      return req;
+    };
+  });
+  await add("3件目");
+  await add("4件目");
+  await expect(page.getByTestId("task-item")).toHaveCount(4);
+  await page.reload();
+  await expect(page.getByTestId("task-item")).toHaveCount(4);
+});
